@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The app itself has no runtime dependencies; this only fetches the
+      # two build tools used for packaging.
+      - name: Install build tooling
+        run: npm ci
+
+      - name: Pairing and short-authentication-string tests
+        run: node test/pairing.js
+
+      - name: Protocol, consent and authorization tests
+        run: node test/protocol.js
+
+      - name: End-to-end transfer test
+        run: node test/e2e.js

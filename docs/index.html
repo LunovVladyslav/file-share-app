@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyShare — fast, encrypted file transfer over your own Wi-Fi</title>
+<meta name="description" content="Send files between Windows, macOS and Linux over the local network. Parallel streams, TLS 1.3, no cloud, no accounts, zero dependencies.">
+<meta property="og:title" content="FlyShare">
+<meta property="og:description" content="Send files between your computers over Wi-Fi. Fast, encrypted, no cloud.">
+<meta property="og:image" content="screenshots/main-dark.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%231F4FE0'/><path d='M4 11.5 8 4l4 7.5' stroke='white' stroke-width='1.6' fill='none' stroke-linejoin='round'/></svg>">
+
+<style>
+/* The page borrows the application's own palette and type treatment: cool
+   paper, ink type, one interactive blue, and saturated colour reserved for a
+   single job — the throughput trace, where hue means actual speed. */
+:root {
+  color-scheme: light dark;
+
+  --paper: light-dark(#e8ecf1, #0b1119);
+  --surface: light-dark(#fbfcfd, #141d27);
+  --surface-2: light-dark(#f1f4f8, #1a242f);
+  --ink: light-dark(#0f1922, #e7edf3);
+  --ink-2: light-dark(#55636f, #9aa8b5);
+  --ink-3: light-dark(#8794a1, #6b7987);
+  --line: light-dark(#cdd6e0, #27333f);
+  --signal: light-dark(#1f4fe0, #6c8dff);
+  --signal-ink: light-dark(#ffffff, #0b1119);
+  --signal-soft: light-dark(rgba(31, 79, 224, 0.08), rgba(108, 141, 255, 0.13));
+  --ok: light-dark(#0e7a58, #3ec99b);
+  --shadow-near: light-dark(rgba(15, 25, 34, 0.06), rgba(0, 0, 0, 0.4));
+  --shadow-far: light-dark(rgba(15, 25, 34, 0.3), rgba(0, 0, 0, 0.9));
+  --shadow: 0 1px 2px var(--shadow-near), 0 24px 60px -32px var(--shadow-far);
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, figure { margin: 0; }
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--signal); }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* --- top bar ------------------------------------------------------- */
+
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 16px;
+  height: 60px; padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 84%, transparent);
+  backdrop-filter: blur(12px);
+}
+.nav__mark {
+  width: 18px; height: 18px; border-radius: 5px; background: var(--signal);
+  clip-path: polygon(50% 6%, 96% 92%, 50% 68%, 4% 92%);
+}
+.nav__name { font-family: var(--font-display); font-weight: 650; letter-spacing: -0.01em; }
+.nav__spacer { flex: 1; }
+.nav__link { color: var(--ink-2); text-decoration: none; font-size: 14px; }
+.nav__link:hover { color: var(--signal); }
+
+/* --- hero ---------------------------------------------------------- */
+
+.hero { padding-top: 76px; text-align: center; }
+
+.hero__eyebrow {
+  font-size: 12px; font-weight: 650; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+
+.hero__title {
+  margin-top: 18px;
+  font-family: var(--font-display);
+  font-size: clamp(38px, 6.2vw, 66px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  max-width: 15ch;
+  margin-inline: auto;
+}
+
+.hero__title em { font-style: normal; color: var(--signal); }
+
+.hero__sub {
+  margin: 22px auto 0;
+  max-width: 56ch;
+  font-size: 18px;
+  color: var(--ink-2);
+}
+
+.hero__actions {
+  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+  margin-top: 30px;
+}
+
+.button {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit; font-weight: 600; font-size: 15px;
+  text-decoration: none;
+  transition: border-color 140ms, transform 140ms;
+}
+.button:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+.button--primary {
+  background: var(--signal); border-color: var(--signal); color: var(--signal-ink);
+}
+.button--primary:hover { border-color: var(--signal); }
+
+.hero__note { margin-top: 14px; font-size: 13.5px; color: var(--ink-3); }
+
+/* The signature: the application's own throughput trace, running live. Bar
+   height is the rate and hue is absolute speed, exactly as in the product. */
+.trace {
+  display: block;
+  width: min(560px, 100%);
+  height: 56px;
+  margin: 44px auto 0;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.trace__caption {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.shot {
+  margin-top: 48px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+/* --- sections ------------------------------------------------------ */
+
+.section { padding-top: 88px; }
+
+.section__eyebrow {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 18px;
+  font-size: 11.5px; font-weight: 650; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.section__eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.section__title {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 660;
+  letter-spacing: -0.025em;
+  max-width: 22ch;
+}
+
+.section__lead { margin-top: 14px; max-width: 62ch; color: var(--ink-2); }
+
+.cards {
+  display: grid; gap: 14px; margin-top: 32px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.card {
+  padding: 22px 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.card__title { font-family: var(--font-display); font-size: 17px; font-weight: 640; }
+.card__body { margin-top: 8px; font-size: 14.5px; color: var(--ink-2); }
+
+/* --- speed --------------------------------------------------------- */
+
+.bench { margin-top: 30px; display: grid; gap: 12px; max-width: 640px; }
+
+.bar-row { display: grid; grid-template-columns: 190px 1fr auto; gap: 14px; align-items: center; }
+.bar-row__label { font-size: 14px; color: var(--ink-2); }
+.bar-row__track { display: block; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.bar-row__fill { display: block; height: 100%; border-radius: 6px; }
+.bar-row__value {
+  font-family: var(--font-mono); font-size: 13.5px; font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.aside {
+  margin-top: 26px; padding: 18px 20px;
+  border-left: 2px solid var(--signal);
+  background: var(--signal-soft);
+  border-radius: 0 10px 10px 0;
+  font-size: 14.5px; color: var(--ink-2);
+  max-width: 62ch;
+}
+
+/* --- security ------------------------------------------------------ */
+
+.pair-demo {
+  display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: center;
+  margin-top: 34px;
+}
+
+.screen {
+  flex: 1 1 240px; max-width: 300px;
+  padding: 24px 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.screen__name { font-family: var(--font-display); font-weight: 620; font-size: 15px; }
+.screen__code {
+  margin-top: 12px;
+  font-family: var(--font-mono); font-size: 34px; font-weight: 600;
+  letter-spacing: 0.09em; font-variant-numeric: tabular-nums;
+}
+.screen__hint { margin-top: 10px; font-size: 12.5px; color: var(--ink-3); }
+.pair-demo__equals { font-size: 24px; color: var(--ok); font-weight: 700; }
+
+.code-block {
+  margin-top: 28px; padding: 18px 20px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface);
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.7;
+  color: var(--ink-2);
+  overflow-x: auto;
+}
+.code-block b { color: var(--ink); font-weight: 600; }
+
+/* --- gallery ------------------------------------------------------- */
+
+.gallery { display: grid; gap: 16px; margin-top: 32px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.gallery figure { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.gallery figcaption { padding: 12px 16px; font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line); }
+
+/* --- download ------------------------------------------------------ */
+
+.downloads { margin-top: 30px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.download-row {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 16px 20px; background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.download-row:last-child { border-bottom: 0; }
+.download-row__os { flex: 1; min-width: 180px; font-weight: 600; }
+.download-row__file { font-family: var(--font-mono); font-size: 13px; color: var(--ink-3); }
+
+/* --- footer -------------------------------------------------------- */
+
+.footer {
+  margin-top: 96px; padding-top: 34px; padding-bottom: 48px;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px; color: var(--ink-3);
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+}
+.footer__spacer { flex: 1; }
+.footer a { color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+@media (max-width: 620px) {
+  .bar-row { grid-template-columns: 1fr; gap: 6px; }
+  .hero { padding-top: 48px; }
+  .section { padding-top: 64px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__mark" aria-hidden="true"></span>
+  <span class="nav__name">FlyShare</span>
+  <span class="nav__spacer"></span>
+  <a class="nav__link" href="#speed">Speed</a>
+  <a class="nav__link" href="#security">Security</a>
+  <a class="nav__link" href="#download">Download</a>
+  <a class="nav__link" href="https://github.com/LunovVladyslav/file-share-app">GitHub</a>
+</nav>
+
+<header class="hero wrap">
+  <p class="hero__eyebrow">Windows · macOS · Linux</p>
+  <h1 class="hero__title">Your files, across the room, <em>at wire speed</em></h1>
+  <p class="hero__sub">
+    FlyShare moves files straight between your own computers over Wi-Fi.
+    No cloud round trip, no accounts, no compression behind your back.
+  </p>
+
+  <div class="hero__actions">
+    <a class="button button--primary" href="https://github.com/LunovVladyslav/file-share-app/releases/latest">Download</a>
+    <a class="button" href="https://github.com/LunovVladyslav/file-share-app">View the source</a>
+  </div>
+  <p class="hero__note">Free and open source · MIT · one file, no installer</p>
+
+  <canvas class="trace" id="trace" width="1120" height="112" aria-hidden="true"></canvas>
+  <p class="trace__caption" id="trace-caption">live throughput — colour is speed</p>
+
+  <img class="shot" src="screenshots/main-dark.png" width="1180" height="860"
+       alt="The FlyShare window sending a 2.3 GB file to another computer">
+</header>
+
+<main>
+
+<section class="section wrap">
+  <p class="section__eyebrow">The problem</p>
+  <h2 class="section__title">Two computers, one room, and somehow the file goes to Virginia</h2>
+  <p class="section__lead">
+    The usual options all take a detour. FlyShare does the obvious thing instead:
+    it opens a connection between the two machines and sends the bytes.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <h3 class="card__title">Cloud drives</h3>
+      <p class="card__body">
+        Upload at your connection's slowest speed, wait, then download it all back.
+        A 4 GB video can take an hour to travel three metres.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Chat apps</h3>
+      <p class="card__body">
+        Size caps, queues, and silent re-encoding. What arrives is often not
+        what you sent.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">USB sticks</h3>
+      <p class="card__body">
+        Two copies instead of one, a walk across the room, and a filesystem
+        argument between Windows and macOS.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="section wrap" id="speed">
+  <p class="section__eyebrow">Speed</p>
+  <h2 class="section__title">Built to saturate the link, not the CPU</h2>
+  <p class="section__lead">
+    A single TCP connection on Wi-Fi is capped by its congestion window and
+    stalls on every lost packet. FlyShare opens several and lets them recover
+    independently, so the radio stays busy.
+  </p>
+
+  <div class="bench">
+    <div class="bar-row">
+      <span class="bar-row__label">Plain TCP, 4 streams</span>
+      <span class="bar-row__track"><span class="bar-row__fill" style="width:100%;background:#ffb300"></span></span>
+      <span class="bar-row__value">838 MiB/s</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-row__label">TLS 1.3, 4 streams</span>
+      <span class="bar-row__track"><span class="bar-row__fill" style="width:55.5%;background:#8cc63f"></span></span>
+      <span class="bar-row__value">465 MiB/s</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-row__label">Gigabit Ethernet ceiling</span>
+      <span class="bar-row__track"><span class="bar-row__fill" style="width:14.9%;background:#00b2ca"></span></span>
+      <span class="bar-row__value">125 MiB/s</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-row__label">Wi-Fi 6, realistic</span>
+      <span class="bar-row__track"><span class="bar-row__fill" style="width:11.9%;background:#3d5afe"></span></span>
+      <span class="bar-row__value">~100 MiB/s</span>
+    </div>
+  </div>
+
+  <p class="aside">
+    Encryption costs about 45% of peak throughput — and it does not matter.
+    465 MiB/s is 3.7 Gbit/s, roughly four times what a real Wi-Fi 6 link
+    carries. On an actual network the radio is always the bottleneck, so
+    encryption is free.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <h3 class="card__title">Bytes skip the parser</h3>
+      <p class="card__body">
+        Control messages are JSON; payload is raw. Nothing is base64'd, escaped,
+        or turned into a string on the way through.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Positional writes</h3>
+      <p class="card__body">
+        The receiver reserves each file at full size first, so every stream
+        writes at its own offset without waiting on the others.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Chunked by size</h3>
+      <p class="card__body">
+        Big files split across streams; small files go one per stream. A folder
+        of a thousand items spreads out on its own.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="section wrap" id="security">
+  <p class="section__eyebrow">Security</p>
+  <h2 class="section__title">Compare six digits once. Everything after that is encrypted.</h2>
+  <p class="section__lead">
+    The first time two devices meet they each derive the same six-digit number
+    from a key exchange. You check that both screens agree — that is what rules
+    out anything sitting in the middle — and the devices remember each other for good.
+  </p>
+
+  <div class="pair-demo">
+    <div class="screen">
+      <p class="screen__name">Vladyslav's ThinkPad</p>
+      <p class="screen__code">249 577</p>
+      <p class="screen__hint">Waiting for confirmation</p>
+    </div>
+    <span class="pair-demo__equals" aria-hidden="true">=</span>
+    <div class="screen">
+      <p class="screen__name">Studio Desktop</p>
+      <p class="screen__code">249 577</p>
+      <p class="screen__hint">Codes match → confirm</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+HKDF( ikm  = X25519(<b>both sides' ephemeral keys</b>)      &rarr; forward secrecy<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;salt = X25519(<b>long-term keys pinned at pairing</b>) &rarr; authentication<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;info = "flyshare-session-v2" + both device ids )
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3 class="card__title">TLS 1.3, always</h3>
+      <p class="card__body">
+        Every connection is encrypted with a key derived from the pairing. There
+        is no unencrypted mode to fall back to, and no way to downgrade into one.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Forward secrecy</h3>
+      <p class="card__body">
+        Each connection uses a throwaway key. Traffic recorded today stays
+        unreadable even if the key file is stolen tomorrow.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Consent, not convenience</h3>
+      <p class="card__body">
+        Nothing is written to disk until you accept. An unpaired device cannot
+        get past the handshake, or learn your filenames.
+      </p>
+    </div>
+  </div>
+
+  <p class="aside">
+    The six-digit code has a subtlety worth naming. Deriving it straight from the
+    key exchange would be broken, not merely weaker — a machine in the middle
+    picks its own keys, so it could try about a million of them until the two
+    codes it displays happen to match. FlyShare borrows ZRTP's fix: the
+    responding device commits to a hash of its key before it sees the other's,
+    so neither side can go shopping for a key after the fact.
+  </p>
+</section>
+
+<section class="section wrap">
+  <p class="section__eyebrow">The interface</p>
+  <h2 class="section__title">Small, quiet, and honest about what the network is doing</h2>
+  <p class="section__lead">
+    Four languages, light and dark, list or grid. The one place saturated colour
+    appears is the throughput trace, where hue encodes actual speed — so you can
+    see a Wi-Fi dip and its recovery rather than a smoothed average.
+  </p>
+
+  <div class="gallery">
+    <figure>
+      <img src="screenshots/main-light.png" width="1180" height="860" loading="lazy" alt="FlyShare in light theme">
+      <figcaption>Light or dark, following the system or pinned</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/grid-view.png" width="1180" height="860" loading="lazy" alt="Transfers shown as an adaptive grid">
+      <figcaption>Transfers as a list or an adaptive grid</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/pairing.png" width="1180" height="760" loading="lazy" alt="Pairing dialog showing a six-digit code">
+      <figcaption>Pairing: compare the code, confirm once</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/settings.png" width="1180" height="900" loading="lazy" alt="Settings panel">
+      <figcaption>English, German, Ukrainian, Polish — plural forms included</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="section wrap" id="download">
+  <p class="section__eyebrow">Download</p>
+  <h2 class="section__title">One file. No installer. No Node.js required.</h2>
+  <p class="section__lead">
+    Run it on both computers, compare the code once, and you are done. Builds are
+    unsigned, so Windows SmartScreen and macOS Gatekeeper will ask the first time.
+  </p>
+
+  <div class="downloads">
+    <div class="download-row">
+      <span class="download-row__os">Windows 10/11 · x64</span>
+      <span class="download-row__file">flyshare-win-x64.exe</span>
+    </div>
+    <div class="download-row">
+      <span class="download-row__os">macOS · Apple Silicon</span>
+      <span class="download-row__file">flyshare-darwin-arm64</span>
+    </div>
+    <div class="download-row">
+      <span class="download-row__os">macOS · Intel</span>
+      <span class="download-row__file">flyshare-darwin-x64</span>
+    </div>
+    <div class="download-row">
+      <span class="download-row__os">Linux · x64</span>
+      <span class="download-row__file">flyshare-linux-x64</span>
+    </div>
+  </div>
+
+  <div class="hero__actions" style="justify-content:flex-start">
+    <a class="button button--primary" href="https://github.com/LunovVladyslav/file-share-app/releases/latest">Go to releases</a>
+    <a class="button" href="https://github.com/LunovVladyslav/file-share-app#readme">Read the docs</a>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer wrap">
+  <span>FlyShare · MIT licensed · zero runtime dependencies</span>
+  <span class="footer__spacer"></span>
+  <span><a href="https://github.com/LunovVladyslav/file-share-app">Source</a> · <a href="https://github.com/LunovVladyslav/file-share-app/blob/main/SECURITY.md">Security</a> · built by <a href="https://github.com/LunovVladyslav">Vladyslav Lunov</a></span>
+</footer>
+
+<script>
+/* The hero trace is the application's own chart, fed by a plausible Wi-Fi
+   throughput walk rather than a real link. Same ramp, same rules: bar height
+   is the rate, hue is absolute speed on a log scale. */
+(function () {
+  const canvas = document.getElementById('trace');
+  const caption = document.getElementById('trace-caption');
+  if (!canvas) return;
+
+  const RAMP = [
+    [0.00, [61, 90, 254]], [0.30, [0, 178, 202]], [0.55, [140, 198, 63]],
+    [0.78, [255, 179, 0]], [1.00, [255, 82, 82]],
+  ];
+  const CEILING = 300 * 1024 * 1024;
+
+  function rampColor(rate) {
+    const t = Math.min(1, Math.log2(rate / 65536 + 1) / Math.log2(CEILING / 65536 + 1));
+    for (let i = 1; i < RAMP.length; i += 1) {
+      if (t > RAMP[i][0] && i < RAMP.length - 1) continue;
+      const [t0, c0] = RAMP[i - 1];
+      const [t1, c1] = RAMP[i];
+      const k = Math.max(0, Math.min(1, (t - t0) / (t1 - t0)));
+      return 'rgb(' + c0.map((v, j) => Math.round(v + (c1[j] - v) * k)).join(',') + ')';
+    }
+    return 'rgb(61,90,254)';
+  }
+
+  const samples = [];
+  let rate = 42 * 1024 * 1024;
+
+  function step() {
+    // A slow drift with the occasional dip, the way a real radio behaves.
+    const drift = (Math.random() - 0.48) * 9 * 1024 * 1024;
+    rate = Math.max(4 * 1024 * 1024, Math.min(140 * 1024 * 1024, rate + drift));
+    if (Math.random() < 0.04) rate *= 0.45;
+    samples.push(rate);
+    if (samples.length > 300) samples.shift();
+  }
+
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (canvas.width !== Math.round(width * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const barWidth = 3;
+    const gap = 1;
+    const slots = Math.floor(width / (barWidth + gap));
+    const visible = samples.slice(-slots);
+    const peak = Math.max.apply(null, visible.concat([16 * 1024 * 1024]));
+
+    visible.forEach((value, i) => {
+      const h = Math.max(2, (value / peak) * (height - 8));
+      ctx.fillStyle = rampColor(value);
+      ctx.fillRect(width - (visible.length - i) * (barWidth + gap), height - 4 - h, barWidth, h);
+    });
+
+    if (caption) {
+      caption.textContent = (rate / 1048576).toFixed(0) + ' MB/s — colour is speed';
+    }
+  }
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (let i = 0; i < 300; i += 1) step();
+  draw();
+
+  if (!reduced) {
+    setInterval(() => { step(); draw(); }, 260);
+    window.addEventListener('resize', draw);
+  }
+})();
+</script>
+
+</body>
+</html>

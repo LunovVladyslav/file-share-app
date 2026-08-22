@@ -1,0 +1,747 @@
+/* FlyShare UI
+   ---------------------------------------------------------------
+   The interface is deliberately monochrome: cool paper, ink type,
+   one interactive blue. Saturated colour is reserved for a single
+   job — the live throughput trace, where hue encodes actual speed.
+   Nothing else in the page is allowed to compete with it.          */
+
+/* One definition per colour. light-dark() picks the right side from the
+   root's colour-scheme, so switching themes is a single property change
+   rather than a second palette that has to be kept in sync. */
+:root {
+  color-scheme: light dark;
+
+  --paper: light-dark(#e8ecf1, #0b1119);
+  --surface: light-dark(#fbfcfd, #141d27);
+  --surface-2: light-dark(#f1f4f8, #1a242f);
+  --ink: light-dark(#0f1922, #e7edf3);
+  --ink-2: light-dark(#55636f, #9aa8b5);
+  --ink-3: light-dark(#8794a1, #6b7987);
+  --line: light-dark(#cdd6e0, #27333f);
+  --line-soft: light-dark(#e1e7ed, #1d2731);
+  --signal: light-dark(#1f4fe0, #6c8dff);
+  --signal-ink: light-dark(#ffffff, #0b1119);
+  --signal-soft: light-dark(rgba(31, 79, 224, 0.09), rgba(108, 141, 255, 0.14));
+  --ok: light-dark(#0e7a58, #3ec99b);
+  --err: light-dark(#b3261e, #ff6b60);
+  --scrim: light-dark(rgba(10, 16, 22, 0.32), rgba(0, 0, 0, 0.55));
+
+  /* Split out because light-dark() cannot hold a comma-separated shadow list. */
+  --shadow-near: light-dark(rgba(15, 25, 34, 0.05), rgba(0, 0, 0, 0.4));
+  --shadow-far: light-dark(rgba(15, 25, 34, 0.28), rgba(0, 0, 0, 0.9));
+  --shadow: 0 1px 2px var(--shadow-near), 0 8px 24px -16px var(--shadow-far);
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+/* An explicit choice overrides the system preference in both directions. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --- top bar ---------------------------------------------------- */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 56px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.bar__brand { display: flex; align-items: center; gap: 9px; }
+
+.bar__mark {
+  width: 16px; height: 16px;
+  border-radius: 5px;
+  background: var(--signal);
+  clip-path: polygon(50% 6%, 96% 92%, 50% 68%, 4% 92%);
+}
+
+.bar__name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.bar__self {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.bar__self-name { font-weight: 600; }
+
+.bar__self-meta {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- page ------------------------------------------------------- */
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 36px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.eyebrow__label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.eyebrow__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.eyebrow__count {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  color: var(--ink-2);
+  font-size: 13px;
+  max-width: 56ch;
+  padding: 4px 2px;
+}
+
+/* --- devices ---------------------------------------------------- */
+
+.peers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 10px;
+}
+
+.peer {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 13px 15px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms, transform 140ms;
+  animation: rise 220ms ease-out;
+}
+
+.peer:hover { border-color: color-mix(in srgb, var(--signal) 45%, var(--line)); }
+
+.peer.is-selected {
+  border-color: var(--signal);
+  background: var(--signal-soft);
+}
+
+.peer__dot {
+  position: absolute;
+  top: 15px; right: 15px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent);
+  animation: beacon 2.6s ease-out infinite;
+}
+
+.peer__name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+  padding-right: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peer__meta {
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.peer.is-unpaired {
+  border-style: dashed;
+  background: none;
+}
+
+.peer.is-unpaired .peer__name { color: var(--ink-2); }
+
+.peer__dot.is-unpaired {
+  background: var(--ink-3);
+  animation: none;
+  box-shadow: none;
+}
+
+.peer__action {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
+
+/* --- pairing ------------------------------------------------------ */
+
+.pair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 32;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  padding: 30px 32px 26px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+  animation: rise 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pair[hidden] { display: none; }
+
+.pair__eyebrow {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.pair__peer {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+/* The code is the whole point of this dialog, so nothing else competes with
+   it: tabular figures, wide tracking, and a gap that splits it into two
+   readable triples for someone comparing two screens across a room. */
+.pair__code {
+  margin: 22px 0 18px;
+  font-family: var(--font-mono);
+  font-size: clamp(38px, 11vw, 52px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.pair__note {
+  font-size: 13px;
+  color: var(--ink-2);
+  max-width: 34ch;
+  margin: 0 auto;
+}
+
+.pair__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.pair.is-failed .pair__code { color: var(--err); font-size: 22px; letter-spacing: 0; }
+
+/* --- paired devices ------------------------------------------------ */
+
+.paired {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.paired__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.paired__name { flex: 1; font-size: 13.5px; }
+
+.paired__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* --- drop zone -------------------------------------------------- */
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 38px 24px 34px;
+  border: 1.5px dashed var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  text-align: center;
+  transition: border-color 140ms, background 140ms;
+}
+
+.dropzone.is-armed { border-color: color-mix(in srgb, var(--signal) 40%, var(--line)); }
+
+.dropzone.is-over {
+  border-style: solid;
+  border-color: var(--signal);
+  background: var(--signal-soft);
+}
+
+.dropzone__line {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  max-width: 34ch;
+}
+
+.dropzone__actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+.dropzone__hint { font-size: 12.5px; color: var(--ink-3); }
+
+/* --- controls --------------------------------------------------- */
+
+.button {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+
+.button:hover:not(:disabled) { border-color: var(--ink-3); }
+
+.button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.button--primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--signal-ink);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--signal) 88%, black);
+  border-color: transparent;
+}
+
+.button--quiet { padding: 5px 12px; font-size: 13px; }
+
+.icon-button,
+.link-button {
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.icon-button:hover,
+.link-button:hover { color: var(--signal); }
+
+.icon-button { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 12px; }
+
+/* --- transfers -------------------------------------------------- */
+
+.transfers { display: flex; flex-direction: column; gap: 10px; }
+
+/* Grid keeps a long history scannable; list keeps one active transfer wide
+   enough for the throughput trace to say something. Both are useful, so the
+   choice is the person's. */
+.transfers--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  align-items: start;
+}
+
+.transfer {
+  padding: 13px 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  animation: rise 220ms ease-out;
+}
+
+.transfer.is-pending {
+  border-color: var(--signal);
+  box-shadow: var(--shadow);
+}
+
+.transfer.is-failed { border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
+
+.transfer__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.transfer__arrow {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.transfer__title {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer__rate {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.transfer__status {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.transfer__status.is-ok { color: var(--ok); }
+.transfer__status.is-err { color: var(--err); }
+
+/* An author `display` beats the UA rule for [hidden], so the attribute needs
+   honouring explicitly — without this the canvas keeps its box when empty. */
+.transfer__trace[hidden] { display: none; }
+
+.transfer__trace {
+  display: block;
+  width: 100%;
+  height: 26px;
+  margin: 10px 0 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.transfer__track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.transfer__fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--signal);
+  transition: width 220ms linear;
+}
+
+.transfer__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.transfer__meta-spacer { flex: 1; }
+
+.transfer__actions { display: flex; gap: 8px; margin-top: 12px; }
+
+.transfer__files {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* --- settings drawer -------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--scrim);
+  animation: fade 160ms ease-out;
+}
+
+.settings {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  z-index: 31;
+  width: min(400px, 100vw);
+  padding: 22px 24px 32px;
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: slide-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings[hidden] { display: none; }
+
+.settings__head { display: flex; align-items: center; justify-content: space-between; }
+
+.settings__title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 620;
+}
+
+.settings__status { font-size: 12.5px; color: var(--ok); min-height: 1.2em; }
+
+.field { display: flex; flex-direction: column; gap: 7px; }
+
+.field__label {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.field__value {
+  font-family: var(--font-mono);
+  color: var(--signal);
+  font-variant-numeric: tabular-nums;
+}
+
+.field__hint { font-size: 12.5px; color: var(--ink-3); text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+.input {
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  width: 100%;
+}
+
+.input--mono { font-family: var(--font-mono); font-size: 12.5px; }
+
+.field__row { display: flex; gap: 8px; align-items: stretch; }
+
+.field__row .input { min-width: 0; }
+
+.field__row .button { flex: none; white-space: nowrap; }
+
+/* --- segmented control ---------------------------------------------- */
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.segmented__option {
+  flex: 1;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+
+.segmented__option:hover { color: var(--ink); }
+
+.segmented__option.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--shadow-near);
+}
+
+.input:focus { outline: 2px solid var(--signal); outline-offset: -1px; border-color: transparent; }
+
+.range { width: 100%; accent-color: var(--signal); }
+
+.switch { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+
+.switch__input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.switch__track {
+  flex: none;
+  width: 38px; height: 22px;
+  margin-top: 1px;
+  border-radius: 11px;
+  background: var(--line);
+  transition: background 140ms;
+}
+
+.switch__knob {
+  display: block;
+  width: 18px; height: 18px;
+  margin: 2px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.switch__input:checked + .switch__track { background: var(--signal); }
+.switch__input:checked + .switch__track .switch__knob { transform: translateX(16px); }
+.switch__input:focus-visible + .switch__track { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+.switch__text { font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; }
+
+/* --- toast ------------------------------------------------------ */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 40;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 11px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  animation: rise 200ms ease-out;
+}
+
+.toast--error { border-color: color-mix(in srgb, var(--err) 40%, var(--line)); }
+.toast--ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+
+/* --- motion ----------------------------------------------------- */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes slide-in {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* The beacon is the one ambient animation: it says "this device answered
+   an announcement within the last few seconds", which is real information. */
+@keyframes beacon {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ok) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .bar { padding: 0 16px; gap: 12px; }
+  .bar__self-meta { display: none; }
+  .page { padding: 24px 16px 64px; gap: 34px; }
+  .dropzone { padding: 28px 16px; }
+  .dropzone__line { font-size: 17px; }
+}

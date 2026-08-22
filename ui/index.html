@@ -1,0 +1,138 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyShare</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='4' fill='%231F4FE0'/><path d='M4 11.5 8 4l4 7.5' stroke='white' stroke-width='1.6' fill='none' stroke-linejoin='round'/></svg>">
+<meta name="flyshare-token" content="__FLYSHARE_TOKEN__">
+<link rel="stylesheet" href="/app.css">
+
+<header class="bar">
+  <div class="bar__brand">
+    <span class="bar__mark" aria-hidden="true"></span>
+    <span class="bar__name">FlyShare</span>
+  </div>
+  <div class="bar__self">
+    <span id="self-name" class="bar__self-name">—</span>
+    <span class="bar__self-meta" id="self-meta"></span>
+  </div>
+  <button id="settings-toggle" class="icon-button" aria-expanded="false" aria-controls="settings"
+          data-i18n="bar.settings">Settings</button>
+</header>
+
+<main class="page">
+
+  <section class="block" aria-labelledby="peers-heading">
+    <div class="eyebrow">
+      <h2 id="peers-heading" class="eyebrow__label" data-i18n="peers.heading">On this network</h2>
+      <span class="eyebrow__rule" aria-hidden="true"></span>
+      <span class="eyebrow__count" id="peer-count"></span>
+    </div>
+    <div id="peers" class="peers"></div>
+    <p id="peers-empty" class="empty" data-i18n="peers.empty"></p>
+    <p id="peers-hint" class="empty" hidden data-i18n="peers.hint"></p>
+  </section>
+
+  <section class="block" aria-labelledby="send-heading">
+    <h2 id="send-heading" class="sr-only" data-i18n="send.heading">Sending</h2>
+    <div id="dropzone" class="dropzone" tabindex="0">
+      <p class="dropzone__line" id="dropzone-line"></p>
+      <div class="dropzone__actions">
+        <button id="pick-files" class="button button--primary" disabled data-i18n="drop.pickFiles"></button>
+        <button id="pick-folder" class="button" disabled data-i18n="drop.pickFolder"></button>
+      </div>
+      <p class="dropzone__hint" data-i18n="drop.hint"></p>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="transfers-heading">
+    <div class="eyebrow">
+      <h2 id="transfers-heading" class="eyebrow__label" data-i18n="transfers.heading">Transfers</h2>
+      <span class="eyebrow__rule" aria-hidden="true"></span>
+      <button id="open-folder" class="link-button" data-i18n="transfers.openFolder"></button>
+    </div>
+    <div id="transfers" class="transfers"></div>
+    <p id="transfers-empty" class="empty" data-i18n="transfers.empty"></p>
+  </section>
+
+</main>
+
+<aside id="settings" class="settings" hidden>
+  <div class="settings__head">
+    <h2 class="settings__title" data-i18n="settings.title">Settings</h2>
+    <button id="settings-close" class="icon-button" data-i18n="settings.close"></button>
+  </div>
+
+  <label class="field">
+    <span class="field__label" data-i18n="settings.deviceName"></span>
+    <input id="set-name" class="input" type="text" maxlength="40" autocomplete="off">
+    <span class="field__hint" data-i18n="settings.deviceNameHint"></span>
+  </label>
+
+  <div class="field">
+    <span class="field__label" data-i18n="settings.downloadDir"></span>
+    <div class="field__row">
+      <input id="set-dir" class="input input--mono" type="text" spellcheck="false">
+      <button id="browse-dir" class="button" data-i18n="settings.browse"></button>
+    </div>
+  </div>
+
+  <label class="field">
+    <span class="field__label" data-i18n="settings.language"></span>
+    <select id="set-language" class="input"></select>
+  </label>
+
+  <div class="field">
+    <span class="field__label" data-i18n="settings.theme"></span>
+    <div id="set-theme" class="segmented" role="radiogroup">
+      <button type="button" class="segmented__option" role="radio" data-value="system" data-i18n="settings.themeSystem"></button>
+      <button type="button" class="segmented__option" role="radio" data-value="light" data-i18n="settings.themeLight"></button>
+      <button type="button" class="segmented__option" role="radio" data-value="dark" data-i18n="settings.themeDark"></button>
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="field__label" data-i18n="settings.view"></span>
+    <div id="set-view" class="segmented" role="radiogroup">
+      <button type="button" class="segmented__option" role="radio" data-value="list" data-i18n="settings.viewList"></button>
+      <button type="button" class="segmented__option" role="radio" data-value="grid" data-i18n="settings.viewGrid"></button>
+    </div>
+  </div>
+
+  <label class="field">
+    <span class="field__label">
+      <span data-i18n="settings.streams"></span>
+      <output id="set-streams-value" class="field__value">4</output>
+    </span>
+    <input id="set-streams" class="range" type="range" min="1" max="16" step="1">
+    <span class="field__hint" data-i18n="settings.streamsHint"></span>
+  </label>
+
+  <div class="field">
+    <span class="field__label" data-i18n="settings.pairedDevices"></span>
+    <ul id="paired-list" class="paired"></ul>
+    <span id="paired-empty" class="field__hint" data-i18n="settings.pairedEmpty"></span>
+  </div>
+
+  <label class="switch">
+    <input id="set-auto" class="switch__input" type="checkbox">
+    <span class="switch__track" aria-hidden="true"><span class="switch__knob"></span></span>
+    <span class="switch__text">
+      <span data-i18n="settings.autoAccept"></span>
+      <span class="field__hint" data-i18n="settings.autoAcceptHint"></span>
+    </span>
+  </label>
+
+  <p id="settings-status" class="settings__status" role="status"></p>
+</aside>
+
+<div id="pair-dialog" class="pair" hidden role="dialog" aria-modal="true" aria-labelledby="pair-peer">
+  <p class="pair__eyebrow" data-i18n="pair.eyebrow"></p>
+  <h2 id="pair-peer" class="pair__peer"></h2>
+  <p id="pair-code" class="pair__code" aria-live="polite"></p>
+  <p id="pair-note" class="pair__note"></p>
+  <div id="pair-actions" class="pair__actions"></div>
+</div>
+
+<div id="scrim" class="scrim" hidden></div>
+
+<script type="module" src="/app.js"></script>
