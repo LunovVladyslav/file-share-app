@@ -486,6 +486,20 @@ function rampColor(bytesPerSecond) {
   return 'rgb(61,90,254)';
 }
 
+const BAR_WIDTH = 3;
+const BAR_GAP = 1;
+
+/**
+ * How many bars fit on a canvas — and therefore how much history is worth
+ * keeping. Both the ring buffer and the renderer read this, because a fixed
+ * cap smaller than the number of bars that fit would leave part of the chart
+ * permanently blank no matter how long the transfer ran.
+ */
+function traceSlots(canvas) {
+  const width = canvas.clientWidth;
+  return width > 0 ? Math.floor(width / (BAR_WIDTH + BAR_GAP)) : 240;
+}
+
 function updateTrace(node, transfer, active) {
   let samples = traces.get(transfer.id);
   if (!samples) { samples = []; traces.set(transfer.id, samples); }
@@ -495,7 +509,8 @@ function updateTrace(node, transfer, active) {
   const moving = transfer.status === 'sending' || transfer.status === 'receiving';
   if (moving) {
     samples.push(transfer.speed || 0);
-    if (samples.length > 120) samples.shift();
+    const cap = Math.max(traceSlots(node.trace), 240);
+    while (samples.length > cap) samples.shift();
   }
   // The trace earns its space while bytes are moving, or afterwards if it
   // recorded enough of the link to be a real record. A transfer that finished
@@ -519,17 +534,15 @@ function drawTrace(canvas, samples) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  const barWidth = 3;
-  const gap = 1;
-  const slots = Math.floor(width / (barWidth + gap));
+  const slots = traceSlots(canvas);
   const visible = samples.slice(-slots);
   const peak = Math.max(...visible, 1024 * 1024);
 
   visible.forEach((value, i) => {
     const barHeight = Math.max(1, (value / peak) * (height - 2));
-    const x = width - (visible.length - i) * (barWidth + gap);
+    const x = width - (visible.length - i) * (BAR_WIDTH + BAR_GAP);
     ctx.fillStyle = rampColor(value);
-    ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+    ctx.fillRect(x, height - barHeight, BAR_WIDTH, barHeight);
   });
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "flyshare",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fast cross-platform file transfer over local Wi-Fi (Windows / macOS / Linux)",
   "type": "module",
   "main": "src/main.js",
