@@ -16,6 +16,11 @@ jobs:
   build:
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    # Intel macOS runners are being retired and can sit unscheduled for a long
+    # time. That platform is allowed to fail so it never holds up a release;
+    # Intel users can still run from source.
+    continue-on-error: ${{ matrix.optional || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -23,9 +28,10 @@ jobs:
           - os: windows-latest
             label: Windows (x64)
             artifact: flyshare-win-x64.exe
-          - os: macos-13
+          - os: macos-15-intel
             label: macOS (Intel)
             artifact: flyshare-darwin-x64
+            optional: true
           - os: macos-14
             label: macOS (Apple Silicon)
             artifact: flyshare-darwin-arm64
@@ -79,6 +85,9 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Fail if nothing was built
+        run: test -n "$(ls -A artifacts)"
+
       - name: List what will be published
         run: ls -lh artifacts
 
@@ -96,7 +105,7 @@ jobs:
             |---|---|
             | Windows 10/11 (x64) | `flyshare-win-x64.exe` |
             | macOS (Apple Silicon) | `flyshare-darwin-arm64` |
-            | macOS (Intel) | `flyshare-darwin-x64` |
+            | macOS (Intel) | `flyshare-darwin-x64` (best effort — build from source if missing) |
             | Linux (x64) | `flyshare-linux-x64` |
 
             **macOS and Linux** — mark it executable first:

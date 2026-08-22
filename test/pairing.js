@@ -90,14 +90,22 @@ function unitChecks() {
   check(pairingCommitment(rawPublic(bob), nonce()) !== commit,
     'swapping the nonce after committing is detected');
 
-  // Spot-check that codes are spread over the whole range rather than clumping.
-  const seen = new Set();
-  for (let i = 0; i < 300; i += 1) {
-    const x = keypair();
-    const y = keypair();
-    seen.add(sasBetween(x, y, nonce(), nonce()));
-  }
-  check(seen.size === 300, 'no collisions across 300 pairings', `${seen.size} distinct`);
+  // Codes should be spread across the whole range. Note what is *not* claimed
+  // here: that they never repeat. Six digits is a million values, so among 600
+  // pairings a coincidental repeat is ordinary birthday-problem arithmetic and
+  // harmless — the property that matters is that an attacker cannot *force* a
+  // match, which the commitment above is what prevents.
+  const codes = [];
+  for (let i = 0; i < 600; i += 1) codes.push(sasBetween(keypair(), keypair(), nonce(), nonce()));
+
+  const distinct = new Set(codes).size;
+  check(distinct >= 590, 'codes rarely repeat across 600 pairings', `${distinct} distinct`);
+  check(codes.every((c) => /^\d{6}$/.test(c)), 'every code is six digits');
+
+  const numeric = codes.map(Number);
+  check(Math.min(...numeric) < 200000 && Math.max(...numeric) > 800000,
+    'codes use the whole range',
+    `${Math.min(...numeric)} … ${Math.max(...numeric)}`);
 }
 
 async function integrationChecks() {
