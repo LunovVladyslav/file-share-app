@@ -11,6 +11,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
 
+    // The platform's XDH only exists from API 33 and the app supports 26, so
+    // one implementation covers every level — and it is the same one the spike
+    // checked against Node byte for byte.
+    api(libs.bouncycastle.prov)
+
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
 }

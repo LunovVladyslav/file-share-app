@@ -4,10 +4,7 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import android.provider.Settings
 import android.os.Build
-import androidx.core.content.edit
 import com.lunov.flyshare.core.MulticastPermit
-import com.lunov.flyshare.core.SelfDescription
-import java.security.SecureRandom
 
 /**
  * The one thing discovery needs from Android.
@@ -39,37 +36,18 @@ class AndroidMulticastPermit(context: Context) : MulticastPermit {
 }
 
 /**
- * This device's stable identity on the network.
- *
- * The id must survive restarts — it is how peers recognise us and how a pairing
- * stays attached to something. Settings will move to DataStore per SPEC.md; the
- * id is one string written once, so preferences are the right size of tool.
+ * The device's display name. Its *identity* — the key and the id — lives in the
+ * core's Identity, so that the same code produces the same values on a JVM and
+ * on a phone.
  */
 object DeviceIdentity {
-
-    private const val PREFS = "flyshare"
-    private const val KEY_ID = "deviceId"
-
-    fun describe(context: Context): SelfDescription {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val id = prefs.getString(KEY_ID, null) ?: newId().also { fresh ->
-            prefs.edit { putString(KEY_ID, fresh) }
-        }
-        return SelfDescription(id = id, name = deviceName(context), os = "android")
-    }
-
-    /** 8 random bytes as 16 hex characters, matching docs/PROTOCOL.md §3. */
-    private fun newId(): String {
-        val bytes = ByteArray(8).also { SecureRandom().nextBytes(it) }
-        return bytes.joinToString("") { "%02x".format(it) }
-    }
 
     /**
      * What the person called their phone, when they have called it anything.
      * Falls back to the marketing name rather than a model code, since this is
      * what appears on someone else's screen.
      */
-    private fun deviceName(context: Context): String {
+    fun deviceName(context: Context): String {
         val chosen = runCatching {
             Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
         }.getOrNull()
