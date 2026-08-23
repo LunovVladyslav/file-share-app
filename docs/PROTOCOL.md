@@ -268,8 +268,25 @@ nothing to fall back to.
 - TLS **1.3 only** (`minVersion = maxVersion = TLSv1.3`).
 - External PSK, with PSK identity `flyshare` (ASCII).
 - No certificates are presented or verified. The PSK is the authentication.
-- The reference implementation negotiates `TLS_CHACHA20_POLY1305_SHA256`;
-  any TLS 1.3 AEAD suite is acceptable.
+
+**Only SHA-256 cipher suites may be offered**, by either side:
+
+| Allowed | |
+|---|---|
+| `TLS_AES_128_GCM_SHA256` | `0x1301` |
+| `TLS_CHACHA20_POLY1305_SHA256` | `0x1303` |
+
+`TLS_AES_256_GCM_SHA384` and any other SHA-384 suite MUST NOT be offered. A
+TLS 1.3 external PSK is bound to one hash — SHA-256 here — and offering a
+SHA-384 suite lets the far side select a different digest, at which point the
+handshake dies with *"ciphersuite digest has changed"*. This is not theoretical:
+it is what a second implementation hits first, and the error names the symptom
+rather than the cause.
+
+Implementations SHOULD prefer `TLS_AES_128_GCM_SHA256`. Both ends have hardware
+AES on any current desktop or phone, and on the JVM stack measured for the
+Android client it ran roughly three times faster than ChaCha20 with a handshake
+six times quicker.
 
 ### 8.4 What runs inside
 
