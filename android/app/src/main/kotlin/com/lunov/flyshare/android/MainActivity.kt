@@ -1,7 +1,10 @@
 package com.lunov.flyshare.android
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Parcelable
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,26 +55,33 @@ import com.lunov.flyshare.core.DiscoveryService
 import com.lunov.flyshare.core.Identity
 import com.lunov.flyshare.core.IncomingOffer
 import com.lunov.flyshare.core.IncomingUi
+import com.lunov.flyshare.core.OutgoingUi
 import com.lunov.flyshare.core.PairedPeer
 import com.lunov.flyshare.core.PairingUi
 import com.lunov.flyshare.core.Peer
 import com.lunov.flyshare.core.PeerService
 import com.lunov.flyshare.core.SelfDescription
+import com.lunov.flyshare.core.SendProgress
+import com.lunov.flyshare.core.SendStatus
 import com.lunov.flyshare.core.TransferProgress
 import com.lunov.flyshare.core.TransferStatus
 import com.lunov.flyshare.core.TrustStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Discovery, pairing, and receiving. Sending comes next.
+ * Discovery, pairing, receiving and sending.
  */
 class MainActivity : ComponentActivity() {
+
+    private val shared = MutableStateFlow<List<Uri>>(emptyList())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val context = applicationContext
+        shared.value = sharedUris(intent)
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
@@ -81,11 +92,24 @@ class MainActivity : ComponentActivity() {
                 val paired by model.pairedPeers.collectAsStateWithLifecycle()
                 val pairing by model.pairing.collectAsStateWithLifecycle()
                 val incoming by model.incoming.collectAsStateWithLifecycle()
+                val outgoing by model.outgoing.collectAsStateWithLifecycle()
                 val destination by model.destination.collectAsStateWithLifecycle()
+                val waiting by model.waitingToSend.collectAsStateWithLifecycle()
+                val toShare by shared.collectAsStateWithLifecycle()
 
-                val chooseFolder = rememberLauncherForActivityResult(
-                    ActivityResultContracts.OpenDocumentTree(),
-                ) { uri: Uri? -> uri?.let(model::useFolder) }
+                // Consumed, not just observed: sharing the same photo twice in a
+                // row would otherwise leave the value unchanged, and the second
+                // share would do nothing at all.
+                LaunchedEffect(toShare) {
+                    if (toShare.isNotEmpty()) {
+                        model.stageForSending(toShare)
+                        shared.value = emptyList()
+                    }
+                }
+
+                val pickFiles = rememberLauncherForActivityResult(
+                    ActivityResultContracts.OpenMultipleDocuments(),
+                ) { uris -> model.sendPicked(uris) }
 
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Scaffold { padding ->
@@ -93,36 +117,69 @@ class MainActivity : ComponentActivity() {
                             self = model.self,
                             peers = peers,
                             isPaired = { id -> paired.any { it.id == id } },
-                            onPeerTapped = model::onPeerTapped,
+                            waitingToSend = waiting,
+                            onPeerTapped = { peer -> model.onPeerTapped(peer) { pickFiles.launch(arrayOf("*/*")) } },
                             destination = destination,
-                            onChangeFolder = { chooseFolder.launch(null) },
+                            onChangeFolder = { model.chooseFolderRequested() },
                             incoming = incoming,
+                            outgoing = outgoing,
                             onDismissTransfer = model::dismissTransfer,
+                            onCancelSend = model::cancelSend,
                             modifier = Modifier.padding(padding),
                         )
                     }
                     PairingDialog(pairing, model::answerPairing, model::dismissPairing)
                     OfferDialog(incoming, destination, model::answerOffer, model::declineOffer)
+                    FolderPicker(model)
                 }
             }
         }
     }
+
+    /** A second share while the app is already open arrives here, not in onCreate. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        shared.value = sharedUris(intent)
+    }
+
+    private fun sharedUris(intent: Intent?): List<Uri> {
+        val uris = when (intent?.action) {
+            Intent.ACTION_SEND -> listOfNotNull(intent.parcelable<Uri>(Intent.EXTRA_STREAM))
+            Intent.ACTION_SEND_MULTIPLE -> intent.parcelableList<Uri>(Intent.EXTRA_STREAM)
+            else -> emptyList()
+        }
+        android.util.Log.i("FlyShare", "share: action=${intent?.action} uris=$uris")
+        return uris
+    }
+}
+
+/** The folder chooser, kept beside the model so both paths use one launcher. */
+@Composable
+private fun FolderPicker(model: FlyShareViewModel) {
+    val requested by model.folderRequest.collectAsStateWithLifecycle()
+    val chooseFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri: Uri? -> model.folderChosen(uri) }
+
+    LaunchedEffect(requested) { if (requested) chooseFolder.launch(null) }
 }
 
 class FlyShareViewModel(context: Context) : ViewModel() {
 
-    private val storage = FileStorage(context)
+    private val app = context.applicationContext
+    private val storage = FileStorage(app)
     private val identity = Identity(storage)
     private val trust = TrustStore(storage)
-    private val folder = DownloadFolder(context)
+    private val folder = DownloadFolder(app)
 
     val self = SelfDescription(
         id = identity.deviceId,
-        name = DeviceIdentity.deviceName(context),
+        name = DeviceIdentity.deviceName(app),
         os = "android",
     )
 
-    private val discovery = DiscoveryService(self, AndroidMulticastPermit(context))
+    private val discovery = DiscoveryService(self, AndroidMulticastPermit(app))
     private val peerService = PeerService(
         self = self,
         identity = identity,
@@ -132,33 +189,99 @@ class FlyShareViewModel(context: Context) : ViewModel() {
     )
 
     private val _destination = MutableStateFlow(folder.label())
+    private val _folderRequest = MutableStateFlow(false)
+
+    /** Files shared into the app, waiting for someone to choose a device. */
+    private val _waitingToSend = MutableStateFlow(0)
+    private var pending: List<Uri> = emptyList()
 
     val peers: StateFlow<List<Peer>> = discovery.peers
     val pairing: StateFlow<PairingUi> = peerService.pairing.state
     val pairedPeers: StateFlow<List<PairedPeer>> = peerService.pairing.pairedPeers
     val incoming: StateFlow<IncomingUi> = peerService.incoming.state
-    val destination: StateFlow<String> = _destination
+    val outgoing: StateFlow<OutgoingUi> = peerService.outgoing.state
+    val destination: StateFlow<String> = _destination.asStateFlow()
+    val folderRequest: StateFlow<Boolean> = _folderRequest.asStateFlow()
+    val waitingToSend: StateFlow<Int> = _waitingToSend.asStateFlow()
 
     init {
         discovery.start(viewModelScope)
         peerService.start()
-        // Pairing and receiving are both hard to observe from outside — one
-        // side blocks on a person — so the state machines say what they do.
+        // Pairing and transfers are hard to observe from outside — one side
+        // blocks on a person — so the state machines say what they are doing.
         viewModelScope.launch {
             peerService.pairing.state.collect { android.util.Log.i("FlyShare", "pairing: $it") }
         }
         viewModelScope.launch {
             peerService.incoming.state.collect { android.util.Log.i("FlyShare", "incoming: $it") }
         }
+        viewModelScope.launch {
+            peerService.outgoing.state.collect { android.util.Log.i("FlyShare", "outgoing: $it") }
+        }
     }
 
-    fun onPeerTapped(peer: Peer) {
-        // Pairing is the only thing a tap can do yet; once sending lands, a
-        // paired device becomes a target instead.
-        if (!trust.isPaired(peer.id)) peerService.pairing.pairWith(peer)
+    /** Files arrived from the share sheet; the next paired device tapped gets them. */
+    fun stageForSending(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        pending = uris
+        _waitingToSend.value = uris.size
     }
 
-    fun useFolder(uri: Uri) {
+    fun onPeerTapped(peer: Peer, openPicker: () -> Unit) {
+        if (!trust.isPaired(peer.id)) {
+            peerService.pairing.pairWith(peer)
+            return
+        }
+        if (peerService.outgoing.busy) return
+
+        val staged = pending
+        if (staged.isNotEmpty()) {
+            pending = emptyList()
+            _waitingToSend.value = 0
+            send(peer, staged)
+        } else {
+            target = peer
+            openPicker()
+        }
+    }
+
+    /** The device chosen before the picker opened. */
+    private var target: Peer? = null
+
+    fun sendPicked(uris: List<Uri>) {
+        val peer = target ?: return
+        target = null
+        send(peer, uris)
+    }
+
+    private fun send(peer: Peer, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        val readable = uris.mapNotNull { ContentSource.of(app, it) }
+        if (readable.isEmpty()) {
+            peerService.outgoing.fail(
+                peer.name,
+                if (uris.size == 1) {
+                    "That file could not be read. Try sharing it again, or pick it from Files."
+                } else {
+                    "None of those files could be read."
+                },
+                uris.size,
+            )
+            return
+        }
+        if (readable.size < uris.size) {
+            android.util.Log.w("FlyShare", "skipping ${uris.size - readable.size} unreadable file(s)")
+        }
+        peerService.outgoing.sendTo(peer, ContentSource.distinct(readable))
+    }
+
+    fun cancelSend() = peerService.outgoing.cancel()
+
+    fun chooseFolderRequested() { _folderRequest.value = true }
+
+    fun folderChosen(uri: Uri?) {
+        _folderRequest.value = false
+        if (uri == null) return
         folder.remember(uri)
         _destination.value = folder.label()
     }
@@ -171,7 +294,10 @@ class FlyShareViewModel(context: Context) : ViewModel() {
 
     fun declineOffer() = peerService.incoming.dismiss()
 
-    fun dismissTransfer() = peerService.incoming.dismiss()
+    fun dismissTransfer() {
+        peerService.incoming.dismiss()
+        peerService.outgoing.dismiss()
+    }
 
     override fun onCleared() {
         discovery.stop()
@@ -185,11 +311,14 @@ private fun HomeScreen(
     self: SelfDescription,
     peers: List<Peer>,
     isPaired: (String) -> Boolean,
+    waitingToSend: Int,
     onPeerTapped: (Peer) -> Unit,
     destination: String,
     onChangeFolder: () -> Unit,
     incoming: IncomingUi,
+    outgoing: OutgoingUi,
     onDismissTransfer: () -> Unit,
+    onCancelSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.padding(20.dp)) {
@@ -205,13 +334,22 @@ private fun HomeScreen(
         DestinationRow(destination, onChangeFolder)
 
         if (incoming !is IncomingUi.None && incoming !is IncomingUi.Ask) {
-            TransferCard(incoming, onDismissTransfer)
+            ReceivingCard(incoming, onDismissTransfer)
         }
+        SendingCard(outgoing, onDismissTransfer, onCancelSend)
 
         Text(
-            "ON THIS NETWORK",
+            if (waitingToSend > 0) {
+                "CHOOSE A DEVICE FOR $waitingToSend FILE(S)"
+            } else {
+                "ON THIS NETWORK"
+            },
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (waitingToSend > 0) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.padding(top = 20.dp),
         )
 
@@ -257,40 +395,85 @@ private fun DestinationRow(destination: String, onChange: () -> Unit) {
 }
 
 @Composable
-private fun TransferCard(state: IncomingUi, onDismiss: () -> Unit) {
+private fun ReceivingCard(state: IncomingUi, onDismiss: () -> Unit) {
     val progress: TransferProgress = when (state) {
         is IncomingUi.Busy -> state.progress
         is IncomingUi.Finished -> state.progress
         else -> return
     }
 
+    TransferCard(
+        title = when (progress.status) {
+            TransferStatus.Complete -> "Received from ${progress.peerName}"
+            TransferStatus.Failed -> "Transfer failed"
+            TransferStatus.Declined -> "Declined"
+            else -> "Receiving from ${progress.peerName}"
+        },
+        line = "${progress.fileCount} file(s) · ${formatBytes(progress.received)}" +
+            " of ${formatBytes(progress.totalSize)}",
+        fraction = progress.fraction.takeIf { progress.status == TransferStatus.Receiving },
+        detail = progress.detail,
+        onDismiss = onDismiss.takeIf { progress.status != TransferStatus.Receiving },
+    )
+}
+
+@Composable
+private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -> Unit) {
+    val progress: SendProgress = when (state) {
+        is OutgoingUi.Busy -> state.progress
+        is OutgoingUi.Finished -> state.progress
+        OutgoingUi.None -> return
+    }
+
+    val running = progress.status == SendStatus.Sending ||
+        progress.status == SendStatus.Connecting ||
+        progress.status == SendStatus.Waiting
+
+    TransferCard(
+        title = when (progress.status) {
+            SendStatus.Complete -> "Sent to ${progress.peerName}"
+            SendStatus.Declined -> "${progress.peerName} declined"
+            SendStatus.Failed -> "Could not send"
+            SendStatus.Waiting -> "Waiting for ${progress.peerName}"
+            SendStatus.Connecting -> "Connecting to ${progress.peerName}"
+            SendStatus.Sending -> "Sending to ${progress.peerName}"
+        },
+        line = "${progress.fileCount} file(s) · ${formatBytes(progress.sent)}" +
+            " of ${formatBytes(progress.totalSize)}",
+        fraction = progress.fraction.takeIf { progress.status == SendStatus.Sending },
+        detail = progress.detail,
+        onDismiss = if (running) null else onDismiss,
+        onCancel = onCancel.takeIf { running },
+    )
+}
+
+@Composable
+private fun TransferCard(
+    title: String,
+    line: String,
+    fraction: Float?,
+    detail: String?,
+    onDismiss: (() -> Unit)?,
+    onCancel: (() -> Unit)? = null,
+) {
     Card(Modifier.fillMaxWidth().padding(top = 16.dp)) {
         Column(Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
             Text(
-                when (progress.status) {
-                    TransferStatus.Complete -> "Received from ${progress.peerName}"
-                    TransferStatus.Failed -> "Transfer failed"
-                    TransferStatus.Declined -> "Declined"
-                    else -> "Receiving from ${progress.peerName}"
-                },
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                "${progress.fileCount} file(s) · ${formatBytes(progress.received)}" +
-                    " of ${formatBytes(progress.totalSize)}",
+                line,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
 
-            if (progress.status == TransferStatus.Receiving) {
+            if (fraction != null) {
                 LinearProgressIndicator(
-                    progress = { progress.fraction },
+                    progress = { fraction },
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 )
             }
 
-            progress.detail?.let {
+            detail?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.bodySmall,
@@ -299,9 +482,10 @@ private fun TransferCard(state: IncomingUi, onDismiss: () -> Unit) {
                 )
             }
 
-            if (progress.status != TransferStatus.Receiving) {
+            if (onDismiss != null || onCancel != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Dismiss") }
+                    onCancel?.let { TextButton(onClick = it) { Text("Cancel") } }
+                    onDismiss?.let { TextButton(onClick = it) { Text("Dismiss") } }
                 }
             }
         }
@@ -311,7 +495,7 @@ private fun TransferCard(state: IncomingUi, onDismiss: () -> Unit) {
 @Composable
 private fun PeerCard(peer: Peer, paired: Boolean, onTap: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = !paired, onClick = onTap),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onTap),
         colors = CardDefaults.cardColors(),
     ) {
         Row(
@@ -326,14 +510,12 @@ private fun PeerCard(peer: Peer, paired: Boolean, onTap: () -> Unit) {
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (!paired) {
-                    Text(
-                        "TAP TO CONNECT",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                }
+                Text(
+                    if (paired) "TAP TO SEND FILES" else "TAP TO CONNECT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
             }
             Box(
                 Modifier.size(8.dp).clip(CircleShape).background(
@@ -459,3 +641,20 @@ private fun formatBytes(bytes: Long): String = when {
     bytes >= 1_000 -> "%.0f kB".format(bytes / 1e3)
     else -> "$bytes B"
 }
+
+// The typed getters arrived in API 33; the app supports 26.
+@Suppress("DEPRECATION")
+private inline fun <reified T : Parcelable> Intent.parcelable(name: String): T? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(name, T::class.java)
+    } else {
+        getParcelableExtra(name) as? T
+    }
+
+@Suppress("DEPRECATION")
+private inline fun <reified T : Parcelable> Intent.parcelableList(name: String): List<T> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableArrayListExtra(name, T::class.java).orEmpty()
+    } else {
+        getParcelableArrayListExtra<T>(name).orEmpty()
+    }

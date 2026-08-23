@@ -71,3 +71,21 @@ tasks.register<JavaExec>("receive") {
         project.findProperty("receivePort")?.toString() ?: "45889",
     )
 }
+
+/**
+ * Sends one folder to the real Node receiver — the mirror of `receive`, and
+ * the other half of the interoperability check.
+ */
+tasks.register<JavaExec>("send") {
+    group = "verification"
+    description = "Send a folder to a FlyShare receiver and print a digest of everything sent"
+    mainClass.set("com.lunov.flyshare.core.SendProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardOutput = System.out
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8")
+    args = listOf(
+        project.findProperty("sendDir")?.toString() ?: "build/to-send",
+        project.findProperty("sendHost")?.toString() ?: "127.0.0.1",
+        project.findProperty("sendPort")?.toString() ?: "45889",
+    )
+}

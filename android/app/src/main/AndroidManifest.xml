@@ -27,10 +27,26 @@
         <activity
             android:name="com.lunov.flyshare.android.MainActivity"
             android:exported="true"
-            android:label="FlyShare">
+            android:label="FlyShare"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Sharing into the app from anywhere: a photo from the gallery,
+                 a file from a manager. singleTop above means a second share
+                 reaches the running activity through onNewIntent rather than
+                 stacking another copy of the device list on top of itself. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
     </application>

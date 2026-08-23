@@ -20,6 +20,7 @@ class PeerService(
 
     val pairing = PairingManager(self, identity, trust, scope)
     val incoming = IncomingTransfers(downloads)
+    val outgoing = OutgoingTransfers(self, identity, trust, scope)
 
     private val server = PeerServer(
         self = self,

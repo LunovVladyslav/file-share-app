@@ -45,6 +45,22 @@ object SafePath {
         return name
     }
 
+
+    /**
+     * Make a set of names unique among themselves.
+     *
+     * Two photos picked from different albums are very often both
+     * `IMG_0001.jpg`. The receiver would store the second as `IMG_0001 (2).jpg`
+     * either way, but doing it here means the sender's own list, its progress
+     * and its manifest all agree with what finally lands.
+     */
+    fun deduplicate(names: List<String>): List<String> {
+        val taken = mutableSetOf<String>()
+        return names.map { name ->
+            nextFreeName(name) { it in taken }.also { taken += it }
+        }
+    }
+
     /** `photo.CR3` → (`photo`, `.CR3`); a dotfile keeps its leading dot. */
     fun splitExtension(name: String): Pair<String, String> {
         val dot = name.lastIndexOf('.')

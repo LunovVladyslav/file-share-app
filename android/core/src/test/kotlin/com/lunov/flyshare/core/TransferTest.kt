@@ -108,6 +108,23 @@ class TransferTest {
     }
 
     @Test
+    fun `files picked together get names that do not collide`() {
+        // Two photos from different albums are very often both IMG_0001.jpg.
+        assertEquals(
+            listOf("IMG_0001.jpg", "IMG_0001 (2).jpg", "IMG_0001 (3).jpg", "note.txt"),
+            SafePath.deduplicate(
+                listOf("IMG_0001.jpg", "IMG_0001.jpg", "IMG_0001.jpg", "note.txt"),
+            ),
+        )
+    }
+
+    @Test
+    fun `de-duplication does not rename what is already unique`() {
+        val names = listOf("a.txt", "b/a.txt", "c.bin")
+        assertEquals(names, SafePath.deduplicate(names))
+    }
+
+    @Test
     fun `renaming keeps the extension, which is what opens the file`() {
         assertEquals("photo (2).CR3", SafePath.nextFreeName("photo.CR3") { it == "photo.CR3" })
         assertEquals(".bashrc (2)", SafePath.nextFreeName(".bashrc") { it == ".bashrc" })
