@@ -1,6 +1,8 @@
 import http from 'node:http';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { UI_PORT, loadConfig, saveConfig, platformLabel } from './core/config.js';
 import { localInterfaces } from './core/discovery.js';
 import { isPaired, pairedPeers, forgetPeer } from './core/trust.js';
@@ -198,8 +200,11 @@ export class UiServer {
 
       case 'POST /api/open-folder': {
         const body = await readJson(req);
-        await openInFileManager(body.path ?? loadConfig().downloadDir);
-        return sendJson(res, 200, { ok: true });
+        const opened = await revealInFileManager({
+          target: body.path || loadConfig().downloadDir,
+          select: body.select || null,
+        });
+        return sendJson(res, 200, { ok: true, opened });
       }
 
       default:
@@ -320,10 +325,50 @@ async function readJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-async function openInFileManager(target) {
-  const { spawn } = await import('node:child_process');
-  const command = process.platform === 'win32' ? 'explorer.exe'
-    : process.platform === 'darwin' ? 'open'
-      : 'xdg-open';
-  spawn(command, [target], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+/**
+ * Show a received file or folder in the system file manager.
+ *
+ * Two things this deliberately does not do: fail silently, or fire and forget.
+ * spawn() reports a missing binary through an 'error' event, and an unhandled
+ * one of those takes the whole process down — so it is always listened for,
+ * and the caller is told what happened rather than left guessing.
+ */
+async function revealInFileManager({ target, select }) {
+  const wanted = select ?? target;
+  try {
+    await fsp.access(wanted);
+  } catch {
+    throw new Error(`that folder is no longer there: ${wanted}`);
+  }
+
+  const { command, args } = revealCommand(wanted, Boolean(select));
+
+  await new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
+    } catch (err) {
+      return reject(new Error(`cannot open the file manager: ${err.message}`));
+    }
+    child.once('error', (err) => reject(new Error(`cannot open the file manager: ${err.message}`)));
+    // explorer.exe exits non-zero even when it worked, so a clean spawn is
+    // the only success signal worth waiting for.
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+
+  return wanted;
+}
+
+function revealCommand(target, isFile) {
+  if (process.platform === 'win32') {
+    // The comma form is one argument, not two.
+    return { command: 'explorer.exe', args: isFile ? [`/select,${target}`] : [target] };
+  }
+  if (process.platform === 'darwin') {
+    return { command: 'open', args: isFile ? ['-R', target] : [target] };
+  }
+  return { command: 'xdg-open', args: [isFile ? path.dirname(target) : target] };
 }

@@ -66,6 +66,11 @@ async function api(path, body) {
     body: JSON.stringify(body ?? {}),
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 403) {
+    // The app restarted and issued a new session token; this page is stale.
+    checkSession();
+    throw new Error(t.t('error.stale'));
+  }
   if (!res.ok) throw new Error(data.error || t.t('error.requestFailed', { status: res.status }));
   return data;
 }
@@ -359,6 +364,7 @@ function buildTransfer(transfer) {
       <span class="transfer__meta-spacer"></span>
       <span class="transfer__eta"></span>
     </div>
+    <p class="transfer__hint" hidden></p>
     <div class="transfer__actions"></div>`;
 
   const node = {
@@ -371,6 +377,7 @@ function buildTransfer(transfer) {
     fill: root.querySelector('.transfer__fill'),
     progress: root.querySelector('.transfer__progress'),
     eta: root.querySelector('.transfer__eta'),
+    hint: root.querySelector('.transfer__hint'),
     actions: root.querySelector('.transfer__actions'),
   };
   node.arrow.textContent = transfer.direction === 'in' ? '↓' : '↑';
@@ -422,7 +429,42 @@ function updateTransfer(node, transfer) {
   }
 
   updateTrace(node, transfer, active);
+
+  const hint = slowLinkHint(transfer, traces.get(transfer.id) ?? []);
+  node.hint.hidden = !hint;
+  if (hint) node.hint.textContent = hint;
+
   updateActions(node, transfer);
+}
+
+// Below this a modern Wi-Fi link is clearly not delivering what it could:
+// ~100 Mbit/s, well under 5 GHz and under gigabit Ethernet.
+const SLOW_LINK = 12 * 1024 * 1024;
+
+// Many small files are legitimately slow — the per-file work dominates and the
+// radio is not the culprit — so the hint stays quiet for those.
+const SMALL_FILE_AVERAGE = 2 * 1024 * 1024;
+
+/**
+ * Say something only when the speed is genuinely disappointing *and* the
+ * transfer is long enough for advice to be worth acting on. A warning on a
+ * six-second transfer would be noise, and a warning about the radio when the
+ * real cause is a thousand tiny files would be wrong.
+ */
+function slowLinkHint(transfer, samples) {
+  if (!ACTIVE.has(transfer.status) || samples.length < 20) return null;
+  if (transfer.totalSize / Math.max(transfer.fileCount, 1) < SMALL_FILE_AVERAGE) return null;
+
+  const recent = samples.slice(-20);
+  const median = [...recent].sort((a, b) => a - b)[Math.floor(recent.length / 2)];
+  if (median === 0 || median >= SLOW_LINK) return null;
+
+  // No point advising someone whose transfer is about to end anyway. A full
+  // minute of waiting is enough to justify one line of advice.
+  const secondsLeft = (transfer.totalSize - transfer.received) / median;
+  if (secondsLeft < 60) return null;
+
+  return t.t('transfer.slowLink');
 }
 
 function updateActions(node, transfer) {
@@ -445,8 +487,11 @@ function updateActions(node, transfer) {
     node.actions.append(button(t.t('action.cancel'), 'button button--quiet',
       () => api('/api/cancel', { transferId: transfer.id })));
   } else if (wanted === 'reveal') {
-    node.actions.append(button(t.t('action.reveal'), 'button button--quiet',
-      () => api('/api/open-folder', { path: transfer.destDir })));
+    node.actions.append(button(t.t('action.reveal'), 'button button--quiet', () => api('/api/open-folder', {
+      path: transfer.destDir,
+      // A single file gets highlighted; a folder of them just gets opened.
+      select: transfer.fileCount === 1 ? (transfer.files?.[0]?.path ?? null) : null,
+    })));
   }
 }
 

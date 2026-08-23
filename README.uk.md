@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Залежностей: 0](https://img.shields.io/badge/%D0%B7%D0%B0%D0%BB%D0%B5%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D0%B5%D0%B9-0-brightgreen)
 
-[In English](README.md)
+**[сайт проєкту](https://lunovvladyslav.github.io/file-share-app/)** · [In English](README.md)
 
 <img src="docs/screenshots/main-dark-uk.png" alt="FlyShare передає файл 2.3 ГБ між двома комп'ютерами" width="820">
 

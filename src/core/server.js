@@ -419,7 +419,9 @@ class IncomingTransfer {
       totalSize: this.totalSize,
       received: this.received,
       fileCount: this.files.length,
-      files: this.files.map((f) => ({ rel: f.rel, size: f.size, received: f.received })),
+      // `path` is where the file actually landed after collision renaming,
+      // which is what the interface needs to point at it.
+      files: this.files.map((f) => ({ rel: f.rel, size: f.size, received: f.received, path: f.path })),
       destDir: this.destDir,
       speed: this.speed.bytesPerSecond,
       security: this.security ?? null,

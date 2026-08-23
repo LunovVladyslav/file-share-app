@@ -10,7 +10,7 @@
 ![Runtime dependencies: 0](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)
 ![Windows | macOS | Linux](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-supported-informational)
 
-[Українською](README.uk.md)
+**[flyshare website](https://lunovvladyslav.github.io/file-share-app/)** · [Українською](README.uk.md)
 
 <img src="docs/screenshots/main-dark.png" alt="FlyShare transferring a 2.3 GB file between two computers" width="820">
 

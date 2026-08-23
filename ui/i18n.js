@@ -104,6 +104,11 @@ const STRINGS = {
     'error.selectDeviceFirst': 'Pick a device to send the files to first.',
     'error.requestFailed': 'Request failed ({status})',
     'error.chunkFailed': 'Part of the file did not go through',
+    'error.stale': 'FlyShare restarted — reloading this page',
+
+    'transfer.slowLink': 'Slower than this Wi-Fi should manage. Both devices on '
+      + 'the 5 GHz band and near the router usually fixes it; more parallel '
+      + 'streams can help too.',
   },
 
   de: {
@@ -196,6 +201,11 @@ const STRINGS = {
     'error.selectDeviceFirst': 'Wähle zuerst ein Gerät aus, an das die Dateien gehen sollen.',
     'error.requestFailed': 'Anfrage fehlgeschlagen ({status})',
     'error.chunkFailed': 'Ein Teil der Datei kam nicht durch',
+    'error.stale': 'FlyShare wurde neu gestartet — Seite wird neu geladen',
+
+    'transfer.slowLink': 'Langsamer, als dieses WLAN können sollte. Meist hilft '
+      + 'es, beide Geräte ins 5-GHz-Band und näher an den Router zu bringen; '
+      + 'mehr parallele Verbindungen können auch helfen.',
   },
 
   uk: {
@@ -288,6 +298,11 @@ const STRINGS = {
     'error.selectDeviceFirst': 'Спершу оберіть пристрій, якому надіслати файли.',
     'error.requestFailed': 'Запит не вдався ({status})',
     'error.chunkFailed': 'Частина файлу не передалася',
+    'error.stale': 'FlyShare перезапустився — оновлюю сторінку',
+
+    'transfer.slowLink': 'Повільніше, ніж має давати цей Wi-Fi. Зазвичай '
+      + 'допомагає перевести обидва пристрої на діапазон 5 ГГц і підійти '
+      + 'ближче до роутера; іноді дає ефект більше паралельних потоків.',
   },
 
   pl: {
@@ -380,6 +395,11 @@ const STRINGS = {
     'error.selectDeviceFirst': 'Najpierw wybierz urządzenie, do którego wysłać pliki.',
     'error.requestFailed': 'Żądanie nie powiodło się ({status})',
     'error.chunkFailed': 'Część pliku nie dotarła',
+    'error.stale': 'FlyShare uruchomił się ponownie — przeładowuję stronę',
+
+    'transfer.slowLink': 'Wolniej, niż to Wi-Fi powinno dawać. Zwykle pomaga '
+      + 'przeniesienie obu urządzeń na pasmo 5 GHz i zbliżenie ich do routera; '
+      + 'czasem pomaga też więcej równoległych strumieni.',
   },
 };
 
