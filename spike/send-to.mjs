@@ -72,8 +72,7 @@ const finished = new Promise((resolve) => {
   sender.on('transfer', (t) => {
     if (t.status !== previousStatus) {
       // Every transition, because when this stalls the last one names the step.
-      process.stdout.write(`  [${t.status}]${t.error ? ' ' + t.error : ''}
-`);
+      process.stdout.write(`\r  [${t.status}]${t.error ? ' ' + t.error : ''}\n`);
       previousStatus = t.status;
     }
     if (t.status === 'sending' && t.totalSize) {
@@ -92,7 +91,11 @@ const mbps = (bytesPerSecond) =>
 const started = Date.now();
 await sender.sendPaths(peer, paths);
 const { ok, transfer } = await finished;
-const seconds = (Date.now() - started) / 1000;
+// From acceptance, not from launch: the wait for a person to tap Accept is
+// not the network's fault and would otherwise dominate the number.
+const seconds = transfer.startedAt && transfer.finishedAt
+  ? (transfer.finishedAt - transfer.startedAt) / 1000
+  : (Date.now() - started) / 1000;
 
 console.log(ok ? 'SENT' : 'FAILED');
 console.log(`  files      ${transfer.fileCount ?? transfer.files?.length ?? '?'}`);

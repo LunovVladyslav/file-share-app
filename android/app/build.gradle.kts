@@ -30,6 +30,15 @@ android {
         }
     }
 
+    packaging {
+        resources {
+            // The three BouncyCastle jars each ship the same licence and
+            // notice. Take one copy rather than excluding them: they are the
+            // terms this app is redistributing that code under.
+            pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/NOTICE.md")
+        }
+    }
+
     // A manifest naming a class that is not in the APK builds perfectly well
     // and then dies on launch with ClassNotFoundException. Lint sees it; make
     // that stop the build instead of scrolling past.
@@ -49,6 +58,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+
+    // Writing into a folder the person picked, without asking for broad
+    // storage access. The raw DocumentsContract API can do it; this makes
+    // "find or create this subdirectory" one call instead of a query.
+    implementation(libs.androidx.documentfile)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

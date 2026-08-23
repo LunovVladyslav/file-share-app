@@ -23,6 +23,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import javax.crypto.Cipher
 import java.security.SecureRandom
 import java.security.Security
 import java.util.Vector
@@ -58,6 +59,9 @@ object SecureSession {
 
     private const val PSK_IDENTITY = "flyshare"
 
+    /** BouncyCastle's JCE name for the RFC 7539 form of ChaCha20. */
+    private const val CHACHA20 = "ChaCha7539"
+
     /**
      * SHA-256 suites only, and AES first.
      *
@@ -76,10 +80,20 @@ object SecureSession {
     )
 
     init {
-        // JcaTlsCrypto hands the record cipher to the JCE, and no stock
-        // provider knows BouncyCastle's name for ChaCha20 ("ChaCha7539").
-        // AES-GCM comes from the platform either way.
-        if (Security.getProvider("BC") == null) {
+        // JcaTlsCrypto asks the JCE for the record cipher by name, and only
+        // BouncyCastle knows ChaCha20 as "ChaCha7539".
+        //
+        // Android already registers a cut-down BouncyCastle under the name
+        // "BC", and it does not include that cipher. Checking for the *name*
+        // therefore finds a provider and installs nothing, and a negotiated
+        // ChaCha20 suite then dies with "No provider found for ChaCha7539" —
+        // after the handshake, which makes it read like a protocol fault.
+        // So ask for the algorithm, which is the thing actually needed.
+        val available = runCatching { Cipher.getInstance(CHACHA20) }.isSuccess
+        if (!available) {
+            Security.removeProvider("BC")
+            // Appended rather than inserted first: AES-GCM must keep coming
+            // from the platform provider, where it is hardware-accelerated.
             runCatching { Security.addProvider(BouncyCastleProvider()) }
         }
     }
@@ -283,6 +297,13 @@ object SecureSession {
 
         override fun getProtocolVersions(): Array<ProtocolVersion> = ProtocolVersion.TLSv13.only()
         override fun getSupportedCipherSuites(): IntArray = CIPHER_SUITES
+
+        /**
+         * Our order, not the client's. OpenSSL offers ChaCha20 ahead of
+         * AES-128, so honouring the client's preference gives away the
+         * threefold speed difference measured in the spike for nothing.
+         */
+        override fun preferLocalCipherSuites(): Boolean = true
 
         override fun getExternalPSK(identities: Vector<*>?): TlsPSKExternal = BasicTlsPSKExternal(
             PSK_IDENTITY.toByteArray(Charsets.US_ASCII),

@@ -324,6 +324,15 @@ class SendSession {
     // Nothing else is ever sent back on a data connection; resume so the
     // socket keeps reporting close and error normally.
     socket.resume();
+    // An 'error' with no listener is thrown, and takes the whole process with
+    // it — one broken data connection would kill the app. Past 'sending' every
+    // byte is already out and the control connection decides the outcome, so a
+    // late error there is noise, not a failure.
+    socket.on('error', (err) => {
+      if (this.status === 'sending' || this.status === 'waiting') {
+        this.cancel(`data connection lost: ${err.message}`);
+      }
+    });
     return socket;
   }
 

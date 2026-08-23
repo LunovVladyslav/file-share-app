@@ -66,6 +66,7 @@ class PeerServer(
                 // A peer that hangs up mid-handshake is ordinary and not worth
                 // surfacing; anything else is something the person should see.
                 if (error !is FrameException) {
+                    if (System.getenv("FLYSHARE_TRACE") != null) error.printStackTrace()
                     onFailure(error.message ?: error::class.simpleName ?: "connection failed")
                 }
             }

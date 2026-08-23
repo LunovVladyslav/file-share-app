@@ -125,7 +125,7 @@ class TransferReceiver(
             transfer.watcher = watchForCancel(connection, transfer)
 
             // Every file empty: no data connection is coming at all.
-            if (declared == 0L) transfer.signals.offer(SUCCESS)
+            if (declared == 0L) transfer.settle("empty offer", SUCCESS)
 
             val outcome = transfer.signals.take()
             if (outcome == SUCCESS) {
@@ -174,23 +174,48 @@ class TransferReceiver(
 
         val input = DataInputStream(connection.input)
         val buffer = ByteArray(CHUNK_BUFFER)
+        val label = Thread.currentThread().name
+        if (Active.TRACE) println("[trace] $label: data connection open")
 
         try {
             while (true) {
                 val message = Frames.read(input)
                 when (message.type()) {
                     "chunk" -> receiveChunk(message, input, buffer, transfer)
-                    "end" -> return
+                    "end" -> {
+                        drainUntilPeerCloses(connection)
+                        if (Active.TRACE) println("[trace] $label: end, closed cleanly")
+                        return
+                    }
                     else -> throw TransferException(
                         "unexpected frame on a data connection: ${message.type()}",
                     )
                 }
             }
         } catch (e: Exception) {
+            if (Active.TRACE) println("[trace] $label: ${e::class.simpleName}: ${e.message}")
             if (!transfer.finished.get()) {
-                transfer.signals.offer(e.message ?: "a data connection failed")
+                transfer.settle("data connection", e.message ?: "a data connection failed")
             }
             throw e
+        }
+    }
+
+    /**
+     * Wait for the sender to hang up before closing this end.
+     *
+     * The sender's own close_notify is still in flight when its last `end`
+     * arrives. Closing a socket that has unread bytes waiting makes the kernel
+     * send a reset rather than a clean shutdown, and the sender reports that
+     * as a lost connection — on a transfer that had in fact succeeded. Reading
+     * to the end of the stream costs a few milliseconds and removes the whole
+     * class of phantom failure.
+     */
+    private fun drainUntilPeerCloses(connection: SecureChannel) {
+        runCatching {
+            connection.readTimeout(CLOSE_DRAIN_MS)
+            val scratch = ByteArray(1024)
+            while (connection.input.read(scratch) >= 0) { /* discard */ }
         }
     }
 
@@ -221,7 +246,7 @@ class TransferReceiver(
             transfer.report(transfer.received.addAndGet(want.toLong()), onUpdate)
         }
 
-        if (transfer.received.get() >= transfer.totalSize) transfer.signals.offer(SUCCESS)
+        if (transfer.received.get() >= transfer.totalSize) transfer.settle("last chunk", SUCCESS)
     }
 
     /**
@@ -239,14 +264,14 @@ class TransferReceiver(
                 }
             }.getOrElse { "the sender disconnected" }
 
-            if (!transfer.finished.get()) transfer.signals.offer(reason)
+            if (!transfer.finished.get()) transfer.settle("control connection", reason)
         }, "flyshare-control-${transfer.id}")
         watcher.isDaemon = true
         watcher.start()
         return watcher
     }
 
-    private class Active(
+    internal class Active(
         val id: String,
         val token: String,
         val peerName: String,
@@ -256,11 +281,28 @@ class TransferReceiver(
         var sinks: List<DownloadSink> = emptyList()
         var watcher: Thread? = null
 
+        companion object {
+            val TRACE: Boolean = System.getenv("FLYSHARE_TRACE") != null
+        }
+
         val received = AtomicLong()
         val finished = AtomicBoolean(false)
 
         /** The outcome: [SUCCESS], or a sentence saying what went wrong. */
         val signals = LinkedBlockingQueue<String>(8)
+
+        /**
+         * Record an outcome. Only the first one counts; the rest are the
+         * wreckage it caused, and reporting those instead of the cause is how
+         * a transfer failure ends up describing the wrong thing.
+         */
+        fun settle(source: String, outcome: String) {
+            if (TRACE) {
+                println("[trace] $source: ${outcome.ifEmpty { "complete" }} " +
+                    "at ${received.get()} of $totalSize")
+            }
+            signals.offer(outcome)
+        }
 
         private val lastReport = AtomicLong()
 
@@ -294,10 +336,15 @@ class TransferReceiver(
         /** A data connection silent for this long has stalled. */
         const val STALL_TIMEOUT_MS = 60_000
 
+        /** Long enough for a close_notify already on the wire to arrive. */
+        const val CLOSE_DRAIN_MS = 5_000
+
         /** How long to let the sender close first once it has been told. */
         const val CLOSE_GRACE_MS = 5_000L
 
         const val PROGRESS_INTERVAL_MS = 100L
+
+
     }
 }
 

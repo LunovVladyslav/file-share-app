@@ -29,9 +29,12 @@ sealed interface PairingUi {
 /**
  * Drives both halves of pairing and reduces them to one screen state.
  *
- * The two roles look different to a person — one waits, the other decides — but
- * they show the same six digits, and that comparison is the whole security
+ * The two roles look different to a person — one waits, the other decides —
+ * but they show the same six digits, and that comparison is the whole security
  * control. Nothing here may shortcut it.
+ *
+ * The listening socket lives in [PeerService]: pairing is one of the things
+ * that arrives on it, not the thing that owns it.
  */
 class PairingManager(
     private val self: SelfDescription,
@@ -48,25 +51,6 @@ class PairingManager(
 
     /** Set while an incoming request is waiting on a person. */
     private var pendingDecision: CompletableDeferred<Boolean>? = null
-
-    val server: PeerServer = PeerServer(
-        self = self,
-        identity = identity,
-        trust = trust,
-        onPairingRequest = { device, code -> awaitDecision(device, code) },
-        onPaired = { peer ->
-            _pairedPeers.value = trust.all()
-            _state.value = PairingUi.Done(peer.name)
-        },
-        onFailure = { reason ->
-            pendingDecision = null
-            _state.value = PairingUi.Failed(_state.value.peerName(), reason)
-        },
-    )
-
-    fun start() = server.start(scope)
-
-    fun stop() = server.stop()
 
     /** Dial a peer and pair with it. */
     fun pairWith(peer: Peer) {
@@ -109,11 +93,27 @@ class PairingManager(
      * Blocks the connection's own thread until someone answers. That wait is
      * the point: it is what stops a device pairing itself while nobody looks.
      */
-    private fun awaitDecision(device: Pairing.RemoteDevice, code: String): Boolean {
+    fun awaitDecision(device: Pairing.RemoteDevice, code: String): Boolean {
         val decision = CompletableDeferred<Boolean>()
         pendingDecision = decision
         _state.value = PairingUi.Confirm(device.name, code)
         return runBlocking { decision.await() }
+    }
+
+    fun rememberPaired(peer: PairedPeer) {
+        _pairedPeers.value = trust.all()
+        _state.value = PairingUi.Done(peer.name)
+    }
+
+    /**
+     * A connection on the shared port failed. Only pairing's problem if a
+     * pairing was actually on screen — a transfer that goes wrong reports
+     * itself, and must not surface as a pairing failure.
+     */
+    fun fail(reason: String) {
+        if (_state.value == PairingUi.None) return
+        pendingDecision = null
+        _state.value = PairingUi.Failed(_state.value.peerName(), reason)
     }
 
     private fun PairingUi.peerName(): String = when (this) {
