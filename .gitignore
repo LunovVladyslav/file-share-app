@@ -9,6 +9,14 @@ Thumbs.db
 
 spike/lib/
 
+# Android
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.kotlin/
+*.apk
+
 # Local working files, not part of the published project
 .claude/
 SPEC.md

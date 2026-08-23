@@ -35,3 +35,20 @@ jobs:
 
       - name: End-to-end transfer test
         run: node test/e2e.js
+
+  android-core:
+    name: android protocol core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # Only the pure-Kotlin core: it has no Android imports, so it needs no
+      # SDK and no emulator. That is the point of keeping it separate.
+      - name: Test the protocol core
+        working-directory: android
+        run: ./gradlew :core:test --no-daemon
