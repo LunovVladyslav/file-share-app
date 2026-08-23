@@ -1,0 +1,307 @@
+package com.lunov.flyshare.core
+
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.io.DataInputStream
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+
+/** A file the sender says it is about to send. */
+data class IncomingFile(val rel: String, val size: Long)
+
+/** An offer, as it should be described to a person. */
+data class IncomingOffer(
+    val transferId: String,
+    val peerId: String,
+    val peerName: String,
+    val files: List<IncomingFile>,
+    val totalSize: Long,
+)
+
+enum class TransferStatus { Offered, Receiving, Complete, Declined, Failed }
+
+data class TransferProgress(
+    val transferId: String,
+    val peerName: String,
+    val fileCount: Int,
+    val received: Long,
+    val totalSize: Long,
+    val status: TransferStatus,
+    val detail: String? = null,
+    val savedTo: String? = null,
+) {
+    val fraction: Float get() = if (totalSize <= 0) 1f else (received.toDouble() / totalSize).toFloat()
+}
+
+/**
+ * The receiving half of a transfer — docs/PROTOCOL.md §9.
+ *
+ * One control connection settles what is coming and whether it is wanted; the
+ * data connections carry bytes and nothing else. Splitting them is what lets
+ * several streams run at once without any of them having to agree on whose
+ * turn it is to speak.
+ */
+class TransferReceiver(
+    private val store: () -> DownloadStore,
+    private val ask: (IncomingOffer) -> Boolean,
+    private val onUpdate: (TransferProgress) -> Unit = {},
+) {
+
+    private val active = ConcurrentHashMap<String, Active>()
+
+    /**
+     * Handle a control connection whose first frame inside TLS was an offer.
+     *
+     * [peerId] is the id proved by the handshake. Section 9.1 is explicit that
+     * the sender's own `from.id` is display data and must not be trusted: a
+     * peer can write anything there, but it cannot forge the key.
+     */
+    fun control(
+        connection: SecureChannel,
+        offer: JsonObject,
+        peerId: String,
+        peerName: String,
+    ) {
+        val transferId = offer.string("transferId")
+            ?: throw TransferException("offer without a transfer id")
+
+        val files = (offer["files"] as? JsonArray).orEmpty().map { element ->
+            val entry = element.jsonObject
+            IncomingFile(
+                rel = entry["rel"]?.jsonPrimitive?.content
+                    ?: throw TransferException("a file in the offer has no path"),
+                size = entry["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+            )
+        }
+        if (files.isEmpty()) throw TransferException("offer with no files")
+
+        val declared = offer["totalSize"]?.jsonPrimitive?.content?.toLongOrNull()
+            ?: files.sumOf { it.size }
+        val incoming = IncomingOffer(transferId, peerId, peerName, files, declared)
+
+        onUpdate(TransferProgress(transferId, peerName, files.size, 0, declared, TransferStatus.Offered))
+
+        // Nothing touches storage before the answer — section 9.2.
+        if (!ask(incoming)) {
+            Frames.write(connection.output, frame(
+                "t" to "offer-result", "accept" to false, "reason" to "declined by user",
+            ))
+            onUpdate(TransferProgress(transferId, peerName, files.size, 0, declared, TransferStatus.Declined))
+            return
+        }
+
+        val token = Crypto.randomBytes(16).joinToString("") { "%02x".format(it) }
+        val transfer = Active(transferId, token, peerName, declared)
+
+        try {
+            val target = store()
+            // Create every file before accepting, so a full disk is refused now
+            // rather than three quarters of the way through.
+            transfer.files = files
+            transfer.sinks = files.map { target.create(it.rel, it.size) }
+        } catch (e: Exception) {
+            transfer.closeAll(discard = true)
+            Frames.write(connection.output, frame(
+                "t" to "offer-result", "accept" to false,
+                "reason" to (e.message ?: "could not create the files"),
+            ))
+            onUpdate(TransferProgress(
+                transferId, peerName, files.size, 0, declared, TransferStatus.Failed, e.message,
+            ))
+            return
+        }
+
+        active[transferId] = transfer
+        Frames.write(connection.output, frame("t" to "offer-result", "accept" to true, "token" to token))
+        onUpdate(TransferProgress(transferId, peerName, files.size, 0, declared, TransferStatus.Receiving))
+
+        try {
+            connection.readTimeout(0) // idle for the whole transfer; only EOF ends it
+            transfer.watcher = watchForCancel(connection, transfer)
+
+            // Every file empty: no data connection is coming at all.
+            if (declared == 0L) transfer.signals.offer(SUCCESS)
+
+            val outcome = transfer.signals.take()
+            if (outcome == SUCCESS) {
+                transfer.sinks.forEach { it.finish() }
+                Frames.write(connection.output, frame("t" to "done", "transferId" to transferId))
+                // Let the sender read that and hang up first. Closing on top of
+                // it arrives as a reset, and a sender that has just succeeded
+                // should not be told the connection was lost.
+                transfer.watcher?.join(CLOSE_GRACE_MS)
+                onUpdate(TransferProgress(
+                    transferId, peerName, files.size, transfer.received.get(), declared,
+                    TransferStatus.Complete, savedTo = store().label,
+                ))
+            } else {
+                transfer.closeAll(discard = true)
+                runCatching {
+                    Frames.write(connection.output, frame("t" to "error", "reason" to outcome))
+                }
+                onUpdate(TransferProgress(
+                    transferId, peerName, files.size, transfer.received.get(), declared,
+                    TransferStatus.Failed, outcome,
+                ))
+            }
+        } finally {
+            transfer.finished.set(true)
+            active.remove(transferId)
+        }
+    }
+
+    /** Handle a data connection whose first frame inside TLS was a data request. */
+    fun data(connection: SecureChannel, request: JsonObject) {
+        val transfer = active[request.string("transferId")]
+        val token = request.string("token")
+
+        // Constant-time, and only once the transfer is known: a wrong token is
+        // the one thing here that an attacker could retry cheaply.
+        if (transfer == null || token == null ||
+            !Crypto.equalsConstantTime(token.toByteArray(), transfer.token.toByteArray())
+        ) {
+            Frames.write(connection.output, frame("t" to "data-err", "reason" to "not authorised"))
+            return
+        }
+
+        Frames.write(connection.output, frame("t" to "data-ok"))
+        connection.readTimeout(STALL_TIMEOUT_MS)
+
+        val input = DataInputStream(connection.input)
+        val buffer = ByteArray(CHUNK_BUFFER)
+
+        try {
+            while (true) {
+                val message = Frames.read(input)
+                when (message.type()) {
+                    "chunk" -> receiveChunk(message, input, buffer, transfer)
+                    "end" -> return
+                    else -> throw TransferException(
+                        "unexpected frame on a data connection: ${message.type()}",
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            if (!transfer.finished.get()) {
+                transfer.signals.offer(e.message ?: "a data connection failed")
+            }
+            throw e
+        }
+    }
+
+    private fun receiveChunk(
+        message: JsonObject,
+        input: DataInputStream,
+        buffer: ByteArray,
+        transfer: Active,
+    ) {
+        val index = message.int("fileIndex") ?: throw TransferException("chunk without a file index")
+        val offset = message.long("offset") ?: throw TransferException("chunk without an offset")
+        val length = message.long("length") ?: throw TransferException("chunk without a length")
+
+        val file = transfer.files.getOrNull(index)
+            ?: throw TransferException("chunk for a file that was not offered")
+        // Section 9.3: a chunk may not reach past the size the sender declared.
+        if (offset < 0 || length < 0 || offset + length > file.size) {
+            throw TransferException("chunk would write past the end of ${file.rel}")
+        }
+
+        val sink = transfer.sinks[index]
+        var written = 0L
+        while (written < length) {
+            val want = minOf(buffer.size.toLong(), length - written).toInt()
+            input.readFully(buffer, 0, want)
+            sink.write(offset + written, buffer, want)
+            written += want
+            transfer.report(transfer.received.addAndGet(want.toLong()), onUpdate)
+        }
+
+        if (transfer.received.get() >= transfer.totalSize) transfer.signals.offer(SUCCESS)
+    }
+
+    /**
+     * The control connection stays silent during a transfer, so a read on it
+     * only returns for a reason: an explicit cancel, or the sender going away.
+     */
+    private fun watchForCancel(connection: SecureChannel, transfer: Active): Thread {
+        val watcher = Thread({
+            val reason = runCatching {
+                val message = Frames.read(connection.input)
+                if (message.type() == "cancel") {
+                    message.string("reason") ?: "the sender cancelled the transfer"
+                } else {
+                    "unexpected frame during the transfer: ${message.type()}"
+                }
+            }.getOrElse { "the sender disconnected" }
+
+            if (!transfer.finished.get()) transfer.signals.offer(reason)
+        }, "flyshare-control-${transfer.id}")
+        watcher.isDaemon = true
+        watcher.start()
+        return watcher
+    }
+
+    private class Active(
+        val id: String,
+        val token: String,
+        val peerName: String,
+        val totalSize: Long,
+    ) {
+        var files: List<IncomingFile> = emptyList()
+        var sinks: List<DownloadSink> = emptyList()
+        var watcher: Thread? = null
+
+        val received = AtomicLong()
+        val finished = AtomicBoolean(false)
+
+        /** The outcome: [SUCCESS], or a sentence saying what went wrong. */
+        val signals = LinkedBlockingQueue<String>(8)
+
+        private val lastReport = AtomicLong()
+
+        /**
+         * Progress is reported on a timer rather than once per chunk. At full
+         * speed this is reached thousands of times a second, and a UI that
+         * recomposes that often is slower than the transfer it describes.
+         */
+        fun report(total: Long, onUpdate: (TransferProgress) -> Unit) {
+            val now = System.currentTimeMillis()
+            val previous = lastReport.get()
+            if (now - previous < PROGRESS_INTERVAL_MS) return
+            if (!lastReport.compareAndSet(previous, now)) return
+            onUpdate(TransferProgress(
+                id, peerName, files.size, total, totalSize, TransferStatus.Receiving,
+            ))
+        }
+
+        fun closeAll(discard: Boolean) {
+            sinks.forEach { if (discard) it.discard() else it.close() }
+        }
+    }
+
+    private companion object {
+        /** Not a reason, so it cannot collide with one. */
+        const val SUCCESS = ""
+
+        /** Big enough to keep writes cheap, small enough not to strain a phone. */
+        const val CHUNK_BUFFER = 256 * 1024
+
+        /** A data connection silent for this long has stalled. */
+        const val STALL_TIMEOUT_MS = 60_000
+
+        /** How long to let the sender close first once it has been told. */
+        const val CLOSE_GRACE_MS = 5_000L
+
+        const val PROGRESS_INTERVAL_MS = 100L
+    }
+}
+
+private fun JsonArray?.orEmpty(): List<JsonElement> = this ?: emptyList()
+
+private fun JsonObject.long(key: String): Long? =
+    this[key]?.jsonPrimitive?.content?.toLongOrNull()

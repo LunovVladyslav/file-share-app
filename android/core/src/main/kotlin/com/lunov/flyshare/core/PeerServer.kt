@@ -15,8 +15,9 @@ import java.net.Socket
  * The listening half of a peer — docs/PROTOCOL.md §6.
  *
  * One port serves everything, and the first frame says what a connection is
- * for. Only pairing is implemented so far; a `session` gets a clear refusal
- * rather than a dropped connection, so the far side can say something useful.
+ * for: pairing in the clear, or a session that upgrades to TLS and then says
+ * what it wants. Anything unrecognised gets a clear refusal rather than a
+ * dropped connection, so the far side can say something useful.
  */
 class PeerServer(
     private val self: SelfDescription,
@@ -25,6 +26,7 @@ class PeerServer(
     private val onPairingRequest: (Pairing.RemoteDevice, String) -> Boolean,
     private val onPaired: (PairedPeer) -> Unit = {},
     private val onFailure: (String) -> Unit = {},
+    private val transfers: TransferReceiver? = null,
     private val port: Int = TRANSFER_PORT,
 ) {
 
@@ -70,6 +72,52 @@ class PeerServer(
         }
     }
 
+    /**
+     * Upgrade to TLS, then let the encrypted stream say what it is for.
+     *
+     * The connection outlives this call's socket timeout deliberately: a
+     * transfer can take an hour, and the receiver sets its own deadlines.
+     */
+    private fun session(hello: JsonObject, output: OutputStream, socket: Socket) {
+        val receiver = transfers
+        if (receiver == null) {
+            Frames.write(output, frame(
+                "t" to "session-err",
+                "reason" to "this device cannot transfer yet — pairing only",
+                "needsPairing" to !trust.isPaired(hello.string("deviceId") ?: ""),
+            ))
+            return
+        }
+
+        val connection = SecureSession.accept(socket, hello, self, identity, trust)
+        connection.use { serve(it, receiver) }
+    }
+
+    private fun serve(connection: SecureSession.Connection, receiver: TransferReceiver) {
+        connection.readTimeout(Pairing.STEP_TIMEOUT_MS)
+
+        val request = Frames.read(connection.input)
+        when (request.type()) {
+            "offer" -> receiver.control(
+                connection,
+                request,
+                peerId = connection.peerDeviceId,
+                // The name comes from what was pinned at pairing time, not from
+                // the offer: section 9.1 treats the sender's own claim as
+                // display data, and this is a screen a person acts on.
+                peerName = trust.all().firstOrNull { it.id == connection.peerDeviceId }?.name
+                    ?: connection.peerDeviceId,
+            )
+
+            "data" -> receiver.data(connection, request)
+
+            else -> Frames.write(connection.output, frame(
+                "t" to "session-err",
+                "reason" to "unexpected request: ${request.type()}",
+            ))
+        }
+    }
+
     private fun dispatch(
         first: JsonObject,
         input: InputStream,
@@ -85,14 +133,7 @@ class PeerServer(
                 onPaired(outcome.peer)
             }
 
-            "session" -> Frames.write(
-                output,
-                frame(
-                    "t" to "session-err",
-                    "reason" to "this device cannot transfer yet — pairing only",
-                    "needsPairing" to !trust.isPaired(first.string("deviceId") ?: ""),
-                ),
-            )
+            "session" -> session(first, output, socket)
 
             else -> Frames.write(
                 output,

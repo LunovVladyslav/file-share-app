@@ -16,6 +16,11 @@ dependencies {
     // checked against Node byte for byte.
     api(libs.bouncycastle.prov)
 
+    // TLS 1.3 with an external PSK. Conscrypt cannot do it — its PSK key
+    // manager is deprecated precisely because it does not work with 1.3 — and
+    // this is the same stack the spike proved against Node in both roles.
+    api(libs.bouncycastle.tls)
+
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
 }
@@ -40,5 +45,29 @@ tasks.register<JavaExec>("probe") {
     args = listOf(
         project.findProperty("probeName")?.toString() ?: "Kotlin probe",
         project.findProperty("probeSeconds")?.toString() ?: "20",
+    )
+}
+
+/**
+ * Receives one transfer from the real Node sender — see TransferProbe.
+ *
+ * Pairing this with `node spike/send-to.mjs` puts the production desktop
+ * implementation on one end and this receiver on the other, on a desktop,
+ * where a failure can actually be looked at.
+ */
+tasks.register<JavaExec>("receive") {
+    group = "verification"
+    description = "Listen for one transfer and print a digest of everything received"
+    mainClass.set("com.lunov.flyshare.core.TransferProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+    standardOutput = System.out
+    // Without this the JVM prints received filenames in the console codepage,
+    // and a non-Latin name comes out as mojibake — which looks exactly like a
+    // transfer bug and is not one.
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8")
+    args = listOf(
+        project.findProperty("outDir")?.toString() ?: "build/received",
+        project.findProperty("timeoutSeconds")?.toString() ?: "120",
+        project.findProperty("receivePort")?.toString() ?: "45889",
     )
 }
