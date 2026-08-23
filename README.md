@@ -2,13 +2,13 @@
 
 # FlyShare
 
-**Send files between your computers over Wi-Fi. Fast, encrypted, no cloud.**
+**Send files between your devices over Wi-Fi. Fast, encrypted, no cloud.**
 
 [![CI](https://github.com/LunovVladyslav/file-share-app/actions/workflows/ci.yml/badge.svg)](https://github.com/LunovVladyslav/file-share-app/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/LunovVladyslav/file-share-app?include_prereleases&sort=semver)](https://github.com/LunovVladyslav/file-share-app/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Runtime dependencies: 0](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)
-![Windows | macOS | Linux](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-supported-informational)
+![Windows | macOS | Linux | Android](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-supported-informational)
 
 **[flyshare website](https://lunovvladyslav.github.io/file-share-app/)** · [Українською](README.uk.md)
 
@@ -40,6 +40,7 @@ and run it. There is no installer and you do not need Node.js.
 | macOS (Apple Silicon) | `flyshare-darwin-arm64` |
 | macOS (Intel) | `flyshare-darwin-x64` |
 | Linux (x64) | `flyshare-linux-x64` |
+| Android 8+ | `flyshare-android.apk` |
 
 On macOS and Linux, mark it executable first:
 
@@ -53,9 +54,15 @@ Or run it from source — Node.js 20 or newer:
 npm start
 ```
 
+**Android** is not on Google Play, so the APK installs directly: open the
+downloaded file and allow installation from that source when asked. The phone
+speaks the same protocol as the desktop — the same discovery, the same
+six-digit pairing, the same encryption — and appears in the list like any other
+device.
+
 ## First run
 
-1. Start FlyShare on both computers. Each shows up in the other's list within a few seconds.
+1. Start FlyShare on both devices. Each shows up in the other's list within a few seconds.
 2. Click the new device. A six-digit code appears.
 3. Check that **the other screen shows the same code**, then confirm there.
 
@@ -221,7 +228,7 @@ visible failure rather than a silent one.
 
 ```bash
 npm ci
-npm test           # 36 checks across three suites
+npm test           # 50 checks across four suites
 npm run build      # dist/flyshare-<platform>-<arch>
 ```
 
@@ -238,9 +245,52 @@ npm start                                   # in one terminal
 npm run screenshots                         # in another
 ```
 
+### The Android app
+
+```bash
+cd android
+./gradlew :core:test          # the protocol core, no SDK or emulator needed
+./gradlew :app:assembleRelease
+```
+
+The protocol core is plain Kotlin with no Android imports, which is what lets
+it be tested on a laptop and checked against the Node implementation directly:
+
+```bash
+./gradlew :core:receive -PoutDir=/tmp/in     # then, in another terminal:
+node spike/send-to.mjs 127.0.0.1 45889 <peerId> <path>
+```
+
+`:core:send` and `spike/receive-at.mjs` do the same in the other direction. All
+four combinations of the two implementations run on one machine, which is where
+a failure can actually be read.
+
+**Signing.** A release APK is signed with a key that is not in this repository
+— whoever holds it can publish an update that Android installs over the app.
+Create your own once:
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias flyshare -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Then put its location and passwords in `android/keystore.properties`, which is
+git-ignored:
+
+```properties
+storeFile=/absolute/path/to/release.jks
+storePassword=…
+keyAlias=flyshare
+keyPassword=…
+```
+
+Without that file the release build still runs and produces an *unsigned* APK
+— useful for testing, and impossible to install by accident. CI reads the same
+four values from the secrets `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
+
 ## If the devices cannot see each other
 
-1. Are both computers on **the same network and subnet**? Guest Wi-Fi often has client isolation, which blocks all device-to-device traffic.
+1. Are both devices on **the same network and subnet**? Guest Wi-Fi often has client isolation, which blocks all device-to-device traffic.
 2. Does the firewall allow the app on private networks? Windows asks on first run; macOS asks too, and macOS 15+ has a separate Local Network permission under Privacy & Security.
 3. Is a VPN active? It can capture the route to the local network.
 4. Does the startup banner show your LAN address (`192.168.…`), not just a virtual one?
@@ -255,6 +305,7 @@ Pair again.
 - An interrupted transfer cannot be resumed; it starts again.
 - Protocol v2 is deliberately incompatible with v1, so an old unencrypted client gets a clear refusal rather than a silent downgrade.
 - The interface needs a current browser (it uses `light-dark()` and `color-mix()`).
+- On Android, a transfer runs while the app is open or in the background, but not after the system stops the process; and Android refuses to hand out the storage root or `Download` itself as a destination, so choosing a folder means picking one inside them.
 
 ## License
 

@@ -2,12 +2,13 @@
 
 # FlyShare
 
-**Передача файлів між своїми комп'ютерами по Wi-Fi. Швидко, зашифровано, без хмари.**
+**Передача файлів між своїми пристроями по Wi-Fi. Швидко, зашифровано, без хмари.**
 
 [![CI](https://github.com/LunovVladyslav/file-share-app/actions/workflows/ci.yml/badge.svg)](https://github.com/LunovVladyslav/file-share-app/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/LunovVladyslav/file-share-app?include_prereleases&sort=semver)](https://github.com/LunovVladyslav/file-share-app/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Залежностей: 0](https://img.shields.io/badge/%D0%B7%D0%B0%D0%BB%D0%B5%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D0%B5%D0%B9-0-brightgreen)
+![Windows | macOS | Linux | Android](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-supported-informational)
 
 **[сайт проєкту](https://lunovvladyslav.github.io/file-share-app/)** · [In English](README.md)
 
@@ -39,6 +40,7 @@
 | macOS (Apple Silicon) | `flyshare-darwin-arm64` |
 | macOS (Intel) | `flyshare-darwin-x64` |
 | Linux (x64) | `flyshare-linux-x64` |
+| Android 8+ | `flyshare-android.apk` |
 
 На macOS і Linux спершу зробіть файл виконуваним:
 
@@ -52,9 +54,15 @@ chmod +x flyshare-darwin-arm64 && ./flyshare-darwin-arm64
 npm start
 ```
 
+**Android** немає в Google Play, тож APK ставиться напряму: відкрийте
+завантажений файл і дозвольте встановлення з цього джерела. Телефон говорить
+тим самим протоколом, що й десктоп — те саме виявлення, те саме спарювання
+шестизначним кодом, те саме шифрування — і з'являється у списку як звичайний
+пристрій.
+
 ## Перший запуск
 
-1. Запустіть FlyShare на обох комп'ютерах. Кожен з'явиться в списку іншого за кілька секунд.
+1. Запустіть FlyShare на обох пристроях. Кожен з'явиться в списку іншого за кілька секунд.
 2. Натисніть на новий пристрій. З'явиться шестизначний код.
 3. Переконайтеся, що **на другому екрані той самий код**, і підтвердіть там.
 
@@ -220,7 +228,7 @@ multicast-адресу *і* на broadcast підмережі, бо багато
 
 ```bash
 npm ci
-npm test           # 36 перевірок у трьох наборах
+npm test           # 50 перевірок у чотирьох наборах
 npm run build      # dist/flyshare-<платформа>-<архітектура>
 ```
 
@@ -237,9 +245,52 @@ npm start                                   # в одному терміналі
 npm run screenshots                         # в іншому
 ```
 
+### Застосунок для Android
+
+```bash
+cd android
+./gradlew :core:test          # ядро протоколу, без SDK і емулятора
+./gradlew :app:assembleRelease
+```
+
+Ядро протоколу — чистий Kotlin без жодного імпорту Android. Саме тому його
+можна тестувати на ноутбуці й звіряти напряму з реалізацією на Node:
+
+```bash
+./gradlew :core:receive -PoutDir=/tmp/in     # потім в іншому терміналі:
+node spike/send-to.mjs 127.0.0.1 45889 <peerId> <шлях>
+```
+
+`:core:send` і `spike/receive-at.mjs` роблять те саме у зворотний бік. Усі
+чотири комбінації двох реалізацій працюють на одній машині — там, де збій
+справді можна прочитати.
+
+**Підпис.** Релізний APK підписується ключем, якого немає в цьому репозиторії:
+той, хто ним володіє, може випустити оновлення, яке Android поставить поверх
+застосунку. Створіть власний один раз:
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias flyshare -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Далі вкажіть його розташування й паролі в `android/keystore.properties` (файл
+у .gitignore):
+
+```properties
+storeFile=/абсолютний/шлях/до/release.jks
+storePassword=…
+keyAlias=flyshare
+keyPassword=…
+```
+
+Без цього файлу релізна збірка все одно виконається й дасть **непідписаний**
+APK — придатний для тестів і неможливий для випадкового встановлення. CI бере
+ті самі чотири значення з секретів `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` і `ANDROID_KEY_PASSWORD`.
+
 ## Якщо пристрої не бачать одне одного
 
-1. Обидва комп'ютери в **одній мережі й підмережі**? Гостьовий Wi-Fi часто має ізоляцію клієнтів, яка блокує будь-який трафік між пристроями.
+1. Обидва пристрої в **одній мережі й підмережі**? Гостьовий Wi-Fi часто має ізоляцію клієнтів, яка блокує будь-який трафік між пристроями.
 2. Брандмауер дозволяє застосунок у приватних мережах? Windows питає при першому запуску; macOS теж, а macOS 15+ має окремий дозвіл на локальну мережу в «Приватність і безпека».
 3. VPN активний? Він може перехоплювати маршрут до локальної мережі.
 4. У рядку запуску видно вашу LAN-адресу (`192.168.…`), а не лише віртуальну?
@@ -254,6 +305,7 @@ npm run screenshots                         # в іншому
 - Перервану передачу не можна продовжити — вона починається спочатку.
 - Протокол v2 навмисно не сумісний з v1: старий нешифрований клієнт отримає зрозумілу відмову, а не тихий відкат до відкритого тексту.
 - Інтерфейсу потрібен сучасний браузер (використовуються `light-dark()` і `color-mix()`).
+- На Android передача триває, поки застосунок відкритий або згорнутий, але не після того, як система зупинить процес; і Android не віддає як призначення ані корінь сховища, ані сам `Download` — тому теку треба обрати всередині них.
 
 ## Ліцензія
 

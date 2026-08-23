@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FlyShare — fast, encrypted file transfer over your own Wi-Fi</title>
-<meta name="description" content="Send files between Windows, macOS and Linux over the local network. Parallel streams, TLS 1.3, no cloud, no accounts, zero dependencies.">
+<meta name="description" content="Send files between Windows, macOS, Linux and Android over the local network. Parallel streams, TLS 1.3, no cloud, no accounts, zero dependencies.">
 <meta property="og:title" content="FlyShare">
 <meta property="og:description" content="Send files between your computers over Wi-Fi. Fast, encrypted, no cloud.">
 <meta property="og:image" content="screenshots/main-dark.png">
@@ -519,8 +519,9 @@ HKDF( ikm  = X25519(<b>both sides' ephemeral keys</b>)      &rarr; forward secre
   <p class="section__eyebrow">Download</p>
   <h2 class="section__title">One file. No installer. No Node.js required.</h2>
   <p class="section__lead">
-    Run it on both computers, compare the code once, and you are done. Builds are
-    unsigned, so Windows SmartScreen and macOS Gatekeeper will ask the first time.
+    Run it on both devices, compare the code once, and you are done. Builds are
+    unsigned, so Windows SmartScreen and macOS Gatekeeper will ask the first time,
+    and Android will ask permission to install from that source.
   </p>
 
   <div class="downloads">
@@ -539,6 +540,10 @@ HKDF( ikm  = X25519(<b>both sides' ephemeral keys</b>)      &rarr; forward secre
     <div class="download-row">
       <span class="download-row__os">Linux · x64</span>
       <span class="download-row__file">flyshare-linux-x64</span>
+    </div>
+    <div class="download-row">
+      <span class="download-row__os">Android · 8 and newer</span>
+      <span class="download-row__file">flyshare-android.apk</span>
     </div>
   </div>
 

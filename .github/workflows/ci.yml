@@ -62,3 +62,11 @@ jobs:
       - name: Lint the app
         working-directory: android
         run: ./gradlew :app:lintDebug --no-daemon
+
+      # R8 strips anything it cannot see being used, and BouncyCastle's
+      # provider reaches its algorithms by name at run time. A rule that stops
+      # covering them produces a smaller APK that fails at the first handshake,
+      # so the shrunk build is at least assembled on every push.
+      - name: Build the shrunk release APK
+        working-directory: android
+        run: ./gradlew :app:assembleRelease --no-daemon

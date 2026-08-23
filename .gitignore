@@ -20,3 +20,10 @@ android/.kotlin/
 # Local working files, not part of the published project
 .claude/
 SPEC.md
+
+# Signing material. Whoever holds these can publish an update that Android
+# installs over this app, so they belong on the developer's machine and in CI
+# secrets — never in the repository.
+android/keystore.properties
+*.jks
+*.keystore
