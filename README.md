@@ -166,6 +166,11 @@ picks the one sharing a subnet with it, preferring physical interfaces over
 virtual ones — otherwise a Windows machine advertises a Hyper-V switch address
 that the Mac in the next room cannot reach.
 
+The full wire format — discovery packets, framing, the pairing exchange, key
+derivation and the receiver's obligations — is written down in
+**[docs/PROTOCOL.md](docs/PROTOCOL.md)**, precisely enough to build a second
+implementation from. `npm run test:spec` checks that document against the code.
+
 **Transfer.** One TCP port handles everything; the first plaintext frame says
 what the connection is for.
 

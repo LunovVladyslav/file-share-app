@@ -6,3 +6,7 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local working files, not part of the published project
+.claude/
+SPEC.md

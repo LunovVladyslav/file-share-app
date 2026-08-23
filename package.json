@@ -10,12 +10,13 @@
   "scripts": {
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
-    "test": "node test/pairing.js && node test/protocol.js && node test/e2e.js",
+    "test": "node test/spec.js && node test/pairing.js && node test/protocol.js && node test/e2e.js",
     "test:e2e": "node test/e2e.js",
     "test:protocol": "node test/protocol.js",
     "test:pairing": "node test/pairing.js",
     "build": "node scripts/build.js",
-    "screenshots": "node scripts/screenshots.js http://127.0.0.1:45890/"
+    "screenshots": "node scripts/screenshots.js http://127.0.0.1:45890/",
+    "test:spec": "node test/spec.js"
   },
   "engines": {
     "node": ">=20"

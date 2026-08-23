@@ -27,6 +27,17 @@ properties), protocol and consent, and a full end-to-end transfer that compares
 SHA-256 on both sides. They run as separate processes because each device needs
 its own identity key.
 
+## The protocol document
+
+`docs/PROTOCOL.md` is normative: it is what a second implementation reads
+instead of this source tree. `test/spec.js` re-derives the keys and codes from
+that document and compares them against the implementation, so the two cannot
+drift apart silently.
+
+If you change anything on the wire, change the document in the same commit. A
+protocol change without a document change is the bug this project is most likely
+to ship.
+
 ## House rules
 
 - **No runtime dependencies.** `dependencies` stays empty. Build-time tooling in
