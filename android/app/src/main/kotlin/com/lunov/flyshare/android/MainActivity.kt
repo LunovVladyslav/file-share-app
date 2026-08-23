@@ -10,6 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,14 +33,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -181,8 +186,9 @@ private fun App(model: FlyShareViewModel, shared: MutableStateFlow<List<Uri>>) {
         ActivityResultContracts.OpenDocumentTree(),
     ) { uri: Uri? -> model.folderChosen(uri) }
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+    val palette = LocalPalette.current
+    Surface(Modifier.fillMaxSize(), color = palette.paper) {
+        Scaffold(containerColor = palette.paper) { padding ->
             HomeScreen(
                 self = model.self,
                 peers = peers,
@@ -326,8 +332,13 @@ private fun AppDialog(
     confirmButton: @Composable () -> Unit,
     dismissButton: (@Composable () -> Unit)? = null,
 ) {
+    val palette = LocalPalette.current
     AlertDialog(
         onDismissRequest = onDismissRequest,
+        shape = RoundedCornerShape(Radius.dialog),
+        containerColor = palette.surface,
+        titleContentColor = palette.ink,
+        textContentColor = palette.ink2,
         title = { Localized(title) },
         text = { Localized(text) },
         confirmButton = { Localized(confirmButton) },
@@ -351,62 +362,50 @@ private fun HomeScreen(
     onCancelSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.padding(20.dp)) {
+    val palette = LocalPalette.current
+
+    Column(modifier.padding(horizontal = 20.dp).padding(top = 16.dp, bottom = 20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
+                Text(stringResource(R.string.app_name), style = Type.display, color = palette.ink)
                 Text(
                     "${self.name} · ${self.id}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
+                    style = Type.meta,
+                    color = palette.ink3,
+                    modifier = Modifier.padding(top = 3.dp),
                 )
             }
-            TextButton(onClick = onSettings) { Text(stringResource(R.string.settings)) }
+            QuietButton(stringResource(R.string.settings), onSettings)
         }
 
-        DestinationRow(destination, onChangeFolder, Modifier.padding(top = 16.dp))
+        DestinationRow(destination, onChangeFolder, Modifier.padding(top = 18.dp))
 
         if (incoming !is IncomingUi.None && incoming !is IncomingUi.Ask) {
             ReceivingCard(incoming, onDismissTransfer)
         }
         SendingCard(outgoing, onDismissTransfer, onCancelSend)
 
-        Text(
-            if (waitingToSend > 0) {
+        Eyebrow(
+            label = if (waitingToSend > 0) {
                 stringResource(R.string.choose_device) + " · " +
                     pluralStringResource(R.plurals.file_count, waitingToSend, waitingToSend)
             } else {
                 stringResource(R.string.on_this_network)
             },
-            style = MaterialTheme.typography.labelSmall,
-            color = if (waitingToSend > 0) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.padding(top = 20.dp),
+            accent = waitingToSend > 0,
+            modifier = Modifier.padding(top = 24.dp, bottom = 14.dp),
         )
 
         if (peers.isEmpty()) {
             Text(
                 stringResource(R.string.looking_for_devices),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 12.dp),
+                style = Type.body,
+                color = palette.ink2,
             )
             return@Column
         }
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(top = 12.dp),
-        ) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(peers, key = { it.id }) { peer ->
                 PeerCard(peer, isPaired(peer.id)) { onPeerTapped(peer) }
             }
@@ -420,16 +419,20 @@ private fun HomeScreen(
  */
 @Composable
 private fun DestinationRow(destination: String, onChange: () -> Unit, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.files_arrive_in), style = Type.eyebrow, color = palette.ink3)
             Text(
-                stringResource(R.string.files_arrive_in),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                destination,
+                style = Type.body,
+                color = palette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 3.dp),
             )
-            Text(destination, style = MaterialTheme.typography.bodyMedium)
         }
-        TextButton(onClick = onChange) { Text(stringResource(R.string.change)) }
+        QuietButton(stringResource(R.string.change), onChange)
     }
 }
 
@@ -440,13 +443,23 @@ private fun ReceivingCard(state: IncomingUi, onDismiss: () -> Unit) {
         is IncomingUi.Finished -> state.progress
         else -> return
     }
+    val palette = LocalPalette.current
 
     TransferCard(
-        title = when (progress.status) {
-            TransferStatus.Complete -> stringResource(R.string.received_from, progress.peerName)
-            TransferStatus.Failed -> stringResource(R.string.transfer_failed)
-            TransferStatus.Declined -> stringResource(R.string.declined)
-            else -> stringResource(R.string.receiving_from, progress.peerName)
+        title = stringResource(
+            when (progress.status) {
+                TransferStatus.Complete -> R.string.received_from
+                TransferStatus.Failed -> R.string.transfer_failed
+                TransferStatus.Declined -> R.string.declined
+                else -> R.string.receiving_from
+            },
+            progress.peerName,
+        ),
+        status = when (progress.status) {
+            TransferStatus.Complete -> stringResource(R.string.status_done) to palette.ok
+            TransferStatus.Failed -> stringResource(R.string.status_failed) to palette.err
+            TransferStatus.Declined -> stringResource(R.string.declined) to palette.ink3
+            else -> stringResource(R.string.status_receiving) to palette.ink3
         },
         line = countAndSize(progress.fileCount, progress.received, progress.totalSize),
         fraction = progress.fraction.takeIf { progress.status == TransferStatus.Receiving },
@@ -462,6 +475,7 @@ private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -
         is OutgoingUi.Finished -> state.progress
         OutgoingUi.None -> return
     }
+    val palette = LocalPalette.current
 
     val running = progress.status == SendStatus.Sending ||
         progress.status == SendStatus.Connecting ||
@@ -475,6 +489,13 @@ private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -
             SendStatus.Waiting -> stringResource(R.string.waiting_for, progress.peerName)
             SendStatus.Connecting -> stringResource(R.string.connecting_to, progress.peerName)
             SendStatus.Sending -> stringResource(R.string.sending_to, progress.peerName)
+        },
+        status = when (progress.status) {
+            SendStatus.Complete -> stringResource(R.string.status_done) to palette.ok
+            SendStatus.Failed, SendStatus.Declined ->
+                stringResource(R.string.status_failed) to palette.err
+            SendStatus.Sending -> stringResource(R.string.status_sending) to palette.ink3
+            else -> stringResource(R.string.status_waiting) to palette.ink3
         },
         line = countAndSize(progress.fileCount, progress.sent, progress.totalSize),
         fraction = progress.fraction.takeIf { progress.status == SendStatus.Sending },
@@ -492,87 +513,175 @@ private fun countAndSize(files: Int, done: Long, total: Long): String =
 @Composable
 private fun TransferCard(
     title: String,
+    status: Pair<String, Color>,
     line: String,
     fraction: Float?,
     detail: String?,
     onDismiss: (() -> Unit)?,
     onCancel: (() -> Unit)? = null,
 ) {
-    Card(
-        Modifier.fillMaxWidth().padding(top = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    val palette = LocalPalette.current
+
+    Column(
+        Modifier
+            .padding(top = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.card))
+            .background(palette.surface)
+            .hairline(palette.line, Radius.card)
+            .padding(15.dp),
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                line,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
+                title,
+                style = Type.title,
+                color = palette.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            Text(
+                status.first,
+                style = Type.status,
+                color = status.second,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
 
-            if (fraction != null) {
-                LinearProgressIndicator(
-                    progress = { fraction },
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                )
-            }
+        Text(line, style = Type.meta, color = palette.ink3, modifier = Modifier.padding(top = 4.dp))
 
-            detail?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
+        if (fraction != null) Track(fraction, Modifier.padding(top = 12.dp))
 
-            if (onDismiss != null || onCancel != null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    onCancel?.let { TextButton(onClick = it) { Text(stringResource(R.string.cancel)) } }
-                    onDismiss?.let { TextButton(onClick = it) { Text(stringResource(R.string.dismiss)) } }
+        detail?.let {
+            Text(it, style = Type.body, color = palette.err, modifier = Modifier.padding(top = 8.dp))
+        }
+
+        if (onDismiss != null || onCancel != null) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                onCancel?.let { QuietButton(stringResource(R.string.cancel), it) }
+                onDismiss?.let {
+                    Box(Modifier.padding(start = 16.dp)) {
+                        QuietButton(stringResource(R.string.dismiss), it)
+                    }
                 }
             }
         }
     }
 }
 
+/** Four pixels of track, exactly as on the desktop. */
+@Composable
+private fun Track(fraction: Float, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    val width by animateFloatAsState(
+        targetValue = fraction.coerceIn(0f, 1f),
+        animationSpec = tween(220),
+        label = "progress",
+    )
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(palette.surface2),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(width)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(palette.signal),
+        )
+    }
+}
+
 @Composable
 private fun PeerCard(peer: Peer, paired: Boolean, onTap: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onTap),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    val palette = LocalPalette.current
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.card))
+            .then(if (paired) Modifier.background(palette.surface) else Modifier)
+            .hairline(palette.line, Radius.card, dashed = !paired)
+            .clickable(onClick = onTap)
+            .padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 14.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(peer.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "${peer.os} · ${peer.address}:${peer.port}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(if (paired) R.string.tap_to_send else R.string.tap_to_connect),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
-            Box(
-                Modifier.size(8.dp).clip(CircleShape).background(
-                    if (paired) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                ),
+        Column(Modifier.padding(end = 16.dp)) {
+            Text(
+                peer.name,
+                style = Type.peerName,
+                color = if (paired) palette.ink else palette.ink2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${peer.os} · ${peer.address}:${peer.port}",
+                style = Type.meta,
+                color = palette.ink3,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+            Text(
+                stringResource(if (paired) R.string.tap_to_send else R.string.tap_to_connect),
+                style = Type.action,
+                color = palette.signal,
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
+        Beacon(paired, Modifier.align(Alignment.TopEnd).padding(top = 2.dp))
     }
+}
+
+/**
+ * The liveness dot. A paired device pulses; an unpaired one sits still.
+ *
+ * It is the only motion on the screen, which is what makes it readable at a
+ * glance — "that machine is there right now" — rather than decoration.
+ */
+@Composable
+private fun Beacon(paired: Boolean, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    if (!paired) {
+        Box(modifier.size(7.dp).clip(CircleShape).background(palette.ink3))
+        return
+    }
+
+    val transition = rememberInfiniteTransition(label = "beacon")
+    val halo by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = LinearOutSlowInEasing)),
+        label = "halo",
+    )
+
+    Box(modifier.size(7.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(7.dp + (9.dp * halo))
+                .clip(CircleShape)
+                .background(palette.ok.copy(alpha = 0.45f * (1f - halo))),
+        )
+        Box(Modifier.size(7.dp).clip(CircleShape).background(palette.ok))
+    }
+}
+
+/** A text action: ink until touched, signal underneath. */
+@Composable
+private fun QuietButton(label: String, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    Text(
+        label,
+        style = Type.body.copy(fontSize = 12.5.sp),
+        color = palette.signal,
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.control))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
@@ -582,16 +691,12 @@ private fun SettingsDialog(model: FlyShareViewModel, onClose: () -> Unit) {
 
     AppDialog(
         onDismissRequest = onClose,
-        title = { Text(stringResource(R.string.settings)) },
+        title = { Text(stringResource(R.string.settings), style = Type.display) },
         text = {
             Column {
-                Text(
-                    stringResource(R.string.appearance),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Eyebrow(stringResource(R.string.appearance))
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 8.dp),
+                    Modifier.fillMaxWidth().padding(top = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     ThemeChoice.entries.forEach { choice ->
@@ -609,12 +714,7 @@ private fun SettingsDialog(model: FlyShareViewModel, onClose: () -> Unit) {
                     }
                 }
 
-                Text(
-                    stringResource(R.string.language),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 20.dp),
-                )
+                Eyebrow(stringResource(R.string.language), Modifier.padding(top = 22.dp))
                 Language.entries.forEach { choice ->
                     // Each language is written in itself: someone looking for
                     // their own will not find it listed in one they cannot read.
@@ -630,7 +730,7 @@ private fun SettingsDialog(model: FlyShareViewModel, onClose: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.done)) } },
+        confirmButton = { QuietButton(stringResource(R.string.done), onClose) },
     )
 }
 
@@ -641,28 +741,24 @@ private fun Chip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        },
+    val palette = LocalPalette.current
+    Box(
+        modifier
+            .clip(RoundedCornerShape(Radius.control))
+            .background(if (selected) palette.signal else palette.surface2)
+            .hairline(if (selected) palette.signal else palette.line, Radius.control)
+            .clickable(onClick = onClick)
+            .padding(vertical = 11.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.labelLarge,
+            style = Type.body.copy(fontSize = 13.5.sp),
             textAlign = TextAlign.Center,
             // One line: three chips share the width equally, and the longest
             // word in the longest language decides whether any of them wrap.
             maxLines = 1,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onPrimary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp).fillMaxWidth(),
+            color = if (selected) palette.signalInk else palette.ink,
         )
     }
 }
@@ -679,16 +775,20 @@ private fun OfferDialog(
     onDecline: () -> Unit,
 ) {
     val offer: IncomingOffer = (state as? IncomingUi.Ask)?.offer ?: return
+    val palette = LocalPalette.current
 
     AppDialog(
         onDismissRequest = onDecline,
-        title = { Text(stringResource(R.string.wants_to_send, offer.peerName)) },
+        title = {
+            Text(stringResource(R.string.wants_to_send, offer.peerName), style = Type.display)
+        },
         text = {
             Column {
                 Text(
                     pluralStringResource(R.plurals.file_count, offer.files.size, offer.files.size) +
                         " · " + formatBytes(offer.totalSize),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = Type.title,
+                    color = palette.ink,
                 )
                 Text(
                     offer.files.take(4).joinToString("\n") { it.rel } +
@@ -697,25 +797,25 @@ private fun OfferDialog(
                         } else {
                             ""
                         },
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 10.dp),
+                    style = Type.meta,
+                    color = palette.ink3,
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.control))
+                        .background(palette.surface2)
+                        .padding(10.dp),
                 )
                 Text(
                     stringResource(R.string.will_be_saved_in, destination),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = Type.body.copy(fontSize = 13.sp),
+                    color = palette.ink2,
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }
         },
-        confirmButton = {
-            TextButton(onClick = { onAnswer(true) }) { Text(stringResource(R.string.accept)) }
-        },
-        dismissButton = {
-            TextButton(onClick = { onAnswer(false) }) { Text(stringResource(R.string.decline)) }
-        },
+        confirmButton = { PrimaryButton(stringResource(R.string.accept)) { onAnswer(true) } },
+        dismissButton = { QuietButton(stringResource(R.string.decline)) { onAnswer(false) } },
     )
 }
 
@@ -726,6 +826,7 @@ private fun OfferDialog(
 @Composable
 private fun PairingDialog(state: PairingUi, onAnswer: (Boolean) -> Unit, onDismiss: () -> Unit) {
     if (state is PairingUi.None) return
+    val palette = LocalPalette.current
 
     val (title, code, note) = when (state) {
         is PairingUi.Connecting ->
@@ -746,10 +847,10 @@ private fun PairingDialog(state: PairingUi, onAnswer: (Boolean) -> Unit, onDismi
             Column {
                 Text(
                     stringResource(R.string.compare_the_code),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = Type.eyebrow,
+                    color = palette.ink3,
                 )
-                Text(title, style = MaterialTheme.typography.titleLarge)
+                Text(title, style = Type.display, modifier = Modifier.padding(top = 4.dp))
             }
         },
         text = {
@@ -761,30 +862,46 @@ private fun PairingDialog(state: PairingUi, onAnswer: (Boolean) -> Unit, onDismi
                         fontWeight = FontWeight.Bold,
                         fontSize = 40.sp,
                         letterSpacing = 4.sp,
-                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = palette.ink,
+                        modifier = Modifier.padding(vertical = 14.dp),
                     )
                 }
                 Text(
                     note,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = Type.body,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = palette.ink2,
                 )
             }
         },
         confirmButton = {
             when (state) {
-                is PairingUi.Confirm -> TextButton(onClick = { onAnswer(true) }) {
-                    Text(stringResource(R.string.codes_match))
-                }
-                else -> TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+                is PairingUi.Confirm ->
+                    PrimaryButton(stringResource(R.string.codes_match)) { onAnswer(true) }
+                else -> QuietButton(stringResource(R.string.close), onDismiss)
             }
         },
         dismissButton = if (state is PairingUi.Confirm) {
-            { TextButton(onClick = { onAnswer(false) }) { Text(stringResource(R.string.codes_differ)) } }
+            { QuietButton(stringResource(R.string.codes_differ)) { onAnswer(false) } }
         } else {
             null
         },
+    )
+}
+
+/** The one filled control: the thing to do next. */
+@Composable
+private fun PrimaryButton(label: String, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    Text(
+        label,
+        style = Type.body.copy(fontSize = 13.5.sp, fontWeight = FontWeight.W600),
+        color = palette.signalInk,
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radius.control))
+            .background(palette.signal)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
     )
 }
 

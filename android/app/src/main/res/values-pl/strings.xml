@@ -38,6 +38,12 @@
     <string name="cancel">Anuluj</string>
     <string name="progress_of">%1$s z %2$s</string>
 
+    <string name="status_receiving">Odbieranie</string>
+    <string name="status_sending">Wysyłanie</string>
+    <string name="status_waiting">Czekamy</string>
+    <string name="status_done">Gotowe</string>
+    <string name="status_failed">Błąd</string>
+
     <string name="file_unreadable">Nie udało się odczytać tego pliku. Udostępnij go ponownie albo wybierz w „Plikach”.</string>
     <string name="files_unreadable">Nie udało się odczytać żadnego z tych plików.</string>
 

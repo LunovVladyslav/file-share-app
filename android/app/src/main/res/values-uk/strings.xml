@@ -38,6 +38,12 @@
     <string name="cancel">Скасувати</string>
     <string name="progress_of">%1$s з %2$s</string>
 
+    <string name="status_receiving">Отримання</string>
+    <string name="status_sending">Надсилання</string>
+    <string name="status_waiting">Очікування</string>
+    <string name="status_done">Готово</string>
+    <string name="status_failed">Помилка</string>
+
     <string name="file_unreadable">Цей файл не вдалося прочитати. Спробуйте поділитися ним ще раз або оберіть його у «Файлах».</string>
     <string name="files_unreadable">Жоден із цих файлів не вдалося прочитати.</string>
 
