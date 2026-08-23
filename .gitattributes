@@ -1,2 +1,8 @@
 * text=auto eol=lf
 *.png binary
+
+# Shell scripts must keep LF and the executable bit; .bat files must keep CRLF.
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.jar binary
