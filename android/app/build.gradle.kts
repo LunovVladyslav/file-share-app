@@ -29,6 +29,15 @@ android {
             isMinifyEnabled = false
         }
     }
+
+    // A manifest naming a class that is not in the APK builds perfectly well
+    // and then dies on launch with ClassNotFoundException. Lint sees it; make
+    // that stop the build instead of scrolling past.
+    lint {
+        warningsAsErrors = false
+        abortOnError = true
+        fatal += listOf("MissingClass", "Instantiatable")
+    }
 }
 
 dependencies {

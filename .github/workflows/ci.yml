@@ -52,3 +52,13 @@ jobs:
       - name: Test the protocol core
         working-directory: android
         run: ./gradlew :core:test --no-daemon
+
+      # The app module needs the SDK, but lint is what catches a manifest that
+      # names a class the APK does not contain — which builds cleanly and then
+      # dies on launch.
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Lint the app
+        working-directory: android
+        run: ./gradlew :app:lintDebug --no-daemon

@@ -20,8 +20,12 @@
         android:label="FlyShare"
         android:supportsRtl="true"
         android:theme="@style/Theme.FlyShare">
+        <!-- Fully qualified on purpose: a leading dot is resolved against the
+             module's namespace (com.lunov.flyshare), while the sources live in
+             com.lunov.flyshare.android. ".MainActivity" builds fine and then
+             dies on launch with ClassNotFoundException. -->
         <activity
-            android:name=".MainActivity"
+            android:name="com.lunov.flyshare.android.MainActivity"
             android:exported="true"
             android:label="FlyShare">
             <intent-filter>
