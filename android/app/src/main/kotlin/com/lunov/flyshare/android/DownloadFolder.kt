@@ -54,9 +54,14 @@ class DownloadFolder(private val context: Context) {
     fun store(): DownloadStore =
         tree?.let { AndroidDownloadStore(context, it) } ?: FileDownloadStore(fallback)
 
-    /** What to show a person about to accept files. */
-    fun label(): String =
-        tree?.let { describeTree(context, it) } ?: "FlyShare (app storage)"
+    /**
+     * The chosen folder's name, or null when the built-in default is in use.
+     *
+     * Null rather than a ready-made sentence: the default has to be described
+     * in the language the screen is currently drawn in, and only the screen
+     * knows that.
+     */
+    fun treeLabel(): String? = tree?.let { describeTree(context, it) }
 
     private companion object {
         const val PREFERENCES = "flyshare"

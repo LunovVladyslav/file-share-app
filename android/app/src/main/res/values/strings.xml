@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    English, and the fallback for every language that has no file of its own.
+
+    Sentences are kept whole rather than assembled from fragments: German puts
+    its verb in a different place and Polish inflects the noun, so a string
+    built by concatenation is only ever correct in the language it was written
+    in. Anything with a device name in it therefore carries a %s.
+-->
+<resources>
+    <!-- A product name, the same in every language. -->
+    <string name="app_name" translatable="false">FlyShare</string>
+
+    <!-- Home -->
+    <string name="files_arrive_in">FILES ARRIVE IN</string>
+    <string name="change">Change</string>
+    <string name="app_storage">FlyShare (app storage)</string>
+    <string name="on_this_network">ON THIS NETWORK</string>
+    <string name="choose_device">CHOOSE A DEVICE</string>
+    <string name="looking_for_devices">Looking for devices. Start FlyShare on a computer on the same network — it will appear here within seconds.</string>
+    <string name="tap_to_send">TAP TO SEND FILES</string>
+    <string name="tap_to_connect">TAP TO CONNECT</string>
+
+    <!-- Pairing -->
+    <string name="compare_the_code">COMPARE THE CODE</string>
+    <string name="exchanging_keys">Exchanging keys…</string>
+    <string name="waiting_for_peer">Waiting for confirmation on “%1$s”.</string>
+    <string name="make_sure_same_code">Make sure “%1$s” is showing the same code.</string>
+    <string name="paired_encrypted">Connected. Transfers will be encrypted.</string>
+    <string name="codes_match">Codes match</string>
+    <string name="codes_differ">They differ</string>
+    <string name="close">Close</string>
+
+    <!-- Incoming offer -->
+    <string name="wants_to_send">%1$s wants to send files</string>
+    <string name="and_more">…and %1$d more</string>
+    <string name="will_be_saved_in">They will be saved in %1$s.</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
+
+    <!-- Transfers -->
+    <string name="receiving_from">Receiving from %1$s</string>
+    <string name="received_from">Received from %1$s</string>
+    <string name="sending_to">Sending to %1$s</string>
+    <string name="sent_to">Sent to %1$s</string>
+    <string name="connecting_to">Connecting to %1$s</string>
+    <string name="waiting_for">Waiting for %1$s</string>
+    <string name="peer_declined">%1$s declined</string>
+    <string name="transfer_failed">Transfer failed</string>
+    <string name="could_not_send">Could not send</string>
+    <string name="declined">Declined</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="cancel">Cancel</string>
+    <string name="progress_of">%1$s of %2$s</string>
+
+    <!-- Problems -->
+    <string name="file_unreadable">That file could not be read. Try sharing it again, or pick it from Files.</string>
+    <string name="files_unreadable">None of those files could be read.</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="appearance">APPEARANCE</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="language">LANGUAGE</string>
+    <string name="done">Done</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">Transfers</string>
+    <string name="notification_preparing">Preparing…</string>
+    <string name="notification_receiving">Receiving from %1$s</string>
+    <string name="notification_sending">Sending to %1$s</string>
+
+    <!-- Files, as a count. Kept as a plural so languages with more than two
+         forms are not forced through English's two. -->
+    <plurals name="file_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+</resources>

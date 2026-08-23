@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="files_arrive_in">ФАЙЛИ НАДХОДЯТЬ ДО</string>
+    <string name="change">Змінити</string>
+    <string name="app_storage">FlyShare (сховище застосунку)</string>
+    <string name="on_this_network">У ЦІЙ МЕРЕЖІ</string>
+    <string name="choose_device">ОБЕРІТЬ ПРИСТРІЙ</string>
+    <string name="looking_for_devices">Шукаємо пристрої. Запустіть FlyShare на комп’ютері в тій самій мережі — він з’явиться тут за кілька секунд.</string>
+    <string name="tap_to_send">НАТИСНІТЬ, ЩОБ НАДІСЛАТИ</string>
+    <string name="tap_to_connect">НАТИСНІТЬ, ЩОБ З’ЄДНАТИ</string>
+
+    <string name="compare_the_code">ПОРІВНЯЙТЕ КОД</string>
+    <string name="exchanging_keys">Обмін ключами…</string>
+    <string name="waiting_for_peer">Очікуємо підтвердження на «%1$s».</string>
+    <string name="make_sure_same_code">Переконайтеся, що «%1$s» показує той самий код.</string>
+    <string name="paired_encrypted">З’єднано. Передачі будуть зашифровані.</string>
+    <string name="codes_match">Коди збігаються</string>
+    <string name="codes_differ">Відрізняються</string>
+    <string name="close">Закрити</string>
+
+    <string name="wants_to_send">%1$s хоче надіслати файли</string>
+    <string name="and_more">…і ще %1$d</string>
+    <string name="will_be_saved_in">Їх буде збережено до %1$s.</string>
+    <string name="accept">Прийняти</string>
+    <string name="decline">Відхилити</string>
+
+    <string name="receiving_from">Отримуємо від %1$s</string>
+    <string name="received_from">Отримано від %1$s</string>
+    <string name="sending_to">Надсилаємо до %1$s</string>
+    <string name="sent_to">Надіслано до %1$s</string>
+    <string name="connecting_to">З’єднуємося з %1$s</string>
+    <string name="waiting_for">Очікуємо на %1$s</string>
+    <string name="peer_declined">%1$s відхилив</string>
+    <string name="transfer_failed">Передачу не завершено</string>
+    <string name="could_not_send">Не вдалося надіслати</string>
+    <string name="declined">Відхилено</string>
+    <string name="dismiss">Сховати</string>
+    <string name="cancel">Скасувати</string>
+    <string name="progress_of">%1$s з %2$s</string>
+
+    <string name="file_unreadable">Цей файл не вдалося прочитати. Спробуйте поділитися ним ще раз або оберіть його у «Файлах».</string>
+    <string name="files_unreadable">Жоден із цих файлів не вдалося прочитати.</string>
+
+    <string name="settings">Налаштування</string>
+    <string name="appearance">ВИГЛЯД</string>
+    <string name="theme_system">Системна</string>
+    <string name="theme_light">Світла</string>
+    <string name="theme_dark">Темна</string>
+    <string name="language">МОВА</string>
+    <string name="done">Готово</string>
+
+    <string name="notification_channel">Передачі</string>
+    <string name="notification_preparing">Готуємо…</string>
+    <string name="notification_receiving">Отримуємо від %1$s</string>
+    <string name="notification_sending">Надсилаємо до %1$s</string>
+
+    <!-- Ukrainian has three forms: 1 файл, 2–4 файли, 5+ файлів. -->
+    <plurals name="file_count">
+        <item quantity="one">%1$d файл</item>
+        <item quantity="few">%1$d файли</item>
+        <item quantity="many">%1$d файлів</item>
+        <item quantity="other">%1$d файла</item>
+    </plurals>
+</resources>

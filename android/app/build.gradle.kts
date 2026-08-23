@@ -6,7 +6,12 @@ plugins {
 }
 
 android {
-    namespace = "com.lunov.flyshare"
+    // Matches the package the sources are actually in. When it did not, `R`
+    // and `BuildConfig` were generated somewhere else and a manifest entry
+    // written as ".MainActivity" resolved to a class that does not exist —
+    // which builds perfectly and dies on launch. The id installed on the
+    // device is applicationId below, and that has not changed.
+    namespace = "com.lunov.flyshare.android"
     compileSdk = 36
 
     defaultConfig {

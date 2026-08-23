@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="files_arrive_in">DATEIEN LANDEN IN</string>
+    <string name="change">Ändern</string>
+    <string name="app_storage">FlyShare (App-Speicher)</string>
+    <string name="on_this_network">IN DIESEM NETZWERK</string>
+    <string name="choose_device">GERÄT WÄHLEN</string>
+    <string name="looking_for_devices">Suche nach Geräten. Starte FlyShare auf einem Computer im selben Netzwerk — er erscheint hier in wenigen Sekunden.</string>
+    <string name="tap_to_send">TIPPEN ZUM SENDEN</string>
+    <string name="tap_to_connect">TIPPEN ZUM VERBINDEN</string>
+
+    <string name="compare_the_code">CODE VERGLEICHEN</string>
+    <string name="exchanging_keys">Schlüssel werden ausgetauscht…</string>
+    <string name="waiting_for_peer">Warte auf die Bestätigung auf „%1$s“.</string>
+    <string name="make_sure_same_code">Prüfe, ob „%1$s“ denselben Code zeigt.</string>
+    <string name="paired_encrypted">Verbunden. Übertragungen werden verschlüsselt.</string>
+    <string name="codes_match">Codes stimmen überein</string>
+    <string name="codes_differ">Sie unterscheiden sich</string>
+    <string name="close">Schließen</string>
+
+    <string name="wants_to_send">%1$s möchte Dateien senden</string>
+    <string name="and_more">…und %1$d weitere</string>
+    <string name="will_be_saved_in">Sie werden in %1$s gespeichert.</string>
+    <string name="accept">Annehmen</string>
+    <string name="decline">Ablehnen</string>
+
+    <string name="receiving_from">Empfang von %1$s</string>
+    <string name="received_from">Von %1$s empfangen</string>
+    <string name="sending_to">Senden an %1$s</string>
+    <string name="sent_to">An %1$s gesendet</string>
+    <string name="connecting_to">Verbinde mit %1$s</string>
+    <string name="waiting_for">Warte auf %1$s</string>
+    <string name="peer_declined">%1$s hat abgelehnt</string>
+    <string name="transfer_failed">Übertragung fehlgeschlagen</string>
+    <string name="could_not_send">Senden nicht möglich</string>
+    <string name="declined">Abgelehnt</string>
+    <string name="dismiss">Ausblenden</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="progress_of">%1$s von %2$s</string>
+
+    <string name="file_unreadable">Diese Datei konnte nicht gelesen werden. Teile sie erneut oder wähle sie unter „Dateien“ aus.</string>
+    <string name="files_unreadable">Keine dieser Dateien konnte gelesen werden.</string>
+
+    <string name="settings">Einstellungen</string>
+    <string name="appearance">DARSTELLUNG</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="language">SPRACHE</string>
+    <string name="done">Fertig</string>
+
+    <string name="notification_channel">Übertragungen</string>
+    <string name="notification_preparing">Wird vorbereitet…</string>
+    <string name="notification_receiving">Empfang von %1$s</string>
+    <string name="notification_sending">Senden an %1$s</string>
+
+    <plurals name="file_count">
+        <item quantity="one">%1$d Datei</item>
+        <item quantity="other">%1$d Dateien</item>
+    </plurals>
+</resources>
