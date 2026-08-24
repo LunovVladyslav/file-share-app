@@ -67,4 +67,14 @@
         <item quantity="many">%1$d файлів</item>
         <item quantity="other">%1$d файла</item>
     </plurals>
+
+    <!-- Byte units, matching ui/i18n.js on the desktop. A kilobyte is 1000
+         bytes on both sides; see formatBytes() for why that matters. -->
+    <string-array name="units_bytes">
+        <item>Б</item>
+        <item>КБ</item>
+        <item>МБ</item>
+        <item>ГБ</item>
+        <item>ТБ</item>
+    </string-array>
 </resources>

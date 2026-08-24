@@ -104,11 +104,21 @@ async function checkSession() {
 
 // --- formatting ----------------------------------------------------------
 
+/**
+ * Decimal units — a kilobyte is 1000 bytes here, not 1024.
+ *
+ * This used to divide by 1024 while calling the result GB, which is what a
+ * gibibyte is, not a gigabyte. The number was a thirteenth too small: a
+ * transfer the phone described as 81.6 GB showed here as 76 GB, and anyone
+ * comparing the two screens would reasonably conclude that files were being
+ * lost. The Android app follows the same rule, deliberately — see
+ * formatBytes() there. Change one and you must change both.
+ */
 function bytes(value) {
   const units = t.units();
   let n = Number(value) || 0;
   let unit = 0;
-  while (n >= 1024 && unit < units.length - 1) { n /= 1024; unit += 1; }
+  while (n >= 1000 && unit < units.length - 1) { n /= 1000; unit += 1; }
   const digits = n < 10 && unit > 0 ? 1 : 0;
   return `${n.toFixed(digits)} ${units[unit]}`;
 }

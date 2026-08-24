@@ -228,7 +228,7 @@ visible failure rather than a silent one.
 
 ```bash
 npm ci
-npm test           # 50 checks across four suites
+npm test           # 52 checks across four suites
 npm run build      # dist/flyshare-<platform>-<arch>
 ```
 

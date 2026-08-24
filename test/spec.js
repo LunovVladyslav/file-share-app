@@ -11,6 +11,7 @@
  * Run: node test/spec.js
  */
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { computeSasCode, pairingCommitment } from '../src/core/pairing.js';
 
 let failures = 0;
@@ -172,6 +173,45 @@ console.log('\nframing (§5):');
     while ((f = reader.next()) !== null) seen.push(f.t);
   }
   check(seen.join(',') === 'ping,pong', 'frames reassemble across split reads', seen.join(','));
+}
+
+/* --- what a person reads ------------------------------------------------
+ *
+ * Not protocol, but the same failure mode: two implementations of one rule
+ * that drifted apart. The desktop divided by 1024 and called the result GB,
+ * so a transfer the Android app described as 81.6 GB appeared here as 76 GB.
+ * The same bytes, a thirteenth apart, and nothing on either screen to say
+ * which of them was right.
+ *
+ * The cases below are the ones in SizeFormatTest.kt. This reads the shipped
+ * function out of ui/app.js rather than a copy of it, because a copy is the
+ * thing that drifts. */
+{
+  const source = fs.readFileSync(new URL('../ui/app.js', import.meta.url), 'utf8');
+  const found = source.match(/function bytes\(value\) \{[\s\S]*?\n\}/);
+  check(Boolean(found), 'the byte formatter can be found in ui/app.js');
+
+  if (found) {
+    const t = { units: () => ['B', 'KB', 'MB', 'GB', 'TB'] };
+    const bytes = new Function('t', `${found[0]}; return bytes;`)(t);
+
+    const cases = [
+      [1000, '1.0 KB'],
+      [1024, '1.0 KB'],
+      [1_000_000, '1.0 MB'],
+      [76 * 1024 ** 3, '82 GB'],
+      [3_800_000_000, '3.8 GB'],
+      [999_000_000, '999 MB'],
+      [0, '0 B'],
+      [512, '512 B'],
+    ];
+    const wrong = cases.filter(([input, want]) => bytes(input) !== want);
+    check(
+      wrong.length === 0,
+      'byte sizes read the same here as in the Android app',
+      wrong.map(([input, want]) => `${input} -> ${bytes(input)}, expected ${want}`).join('; '),
+    );
+  }
 }
 
 console.log(failures === 0 ? '\nSpec matches the implementation.' : `\n${failures} mismatch(es).`);

@@ -86,4 +86,14 @@
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>
     </plurals>
+
+    <!-- Byte units, matching ui/i18n.js on the desktop. A kilobyte is 1000
+         bytes on both sides; see formatBytes() for why that matters. -->
+    <string-array name="units_bytes">
+        <item>B</item>
+        <item>KB</item>
+        <item>MB</item>
+        <item>GB</item>
+        <item>TB</item>
+    </string-array>
 </resources>

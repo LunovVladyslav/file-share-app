@@ -228,7 +228,7 @@ multicast-адресу *і* на broadcast підмережі, бо багато
 
 ```bash
 npm ci
-npm test           # 50 перевірок у чотирьох наборах
+npm test           # 52 перевірки у чотирьох наборах
 npm run build      # dist/flyshare-<платформа>-<архітектура>
 ```
 

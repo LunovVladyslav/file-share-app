@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +74,7 @@ import com.lunov.flyshare.core.Peer
 import com.lunov.flyshare.core.SelfDescription
 import com.lunov.flyshare.core.SendProgress
 import com.lunov.flyshare.core.SendStatus
+import com.lunov.flyshare.core.SizeFormat
 import com.lunov.flyshare.core.TransferProgress
 import com.lunov.flyshare.core.TransferStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -905,12 +907,21 @@ private fun PrimaryButton(label: String, onClick: () -> Unit) {
     )
 }
 
-/** Decimal units, because that is what a file manager shows. */
-private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1e9)
-    bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1e6)
-    bytes >= 1_000 -> "%.0f kB".format(bytes / 1e3)
-    else -> "$bytes B"
+/**
+ * Decimal units, and the same rounding as the desktop.
+ *
+ * The two halves showing different totals for one transfer is worse than
+ * either convention being wrong: a phone that said 81.6 GB beside a laptop
+ * that said 76 GB looked exactly like files going missing, when both were
+ * counting the same bytes. The unit labels come from resources so a Ukrainian
+ * screen says ГБ rather than GB. See bytes() in ui/app.js — change one and
+ * you must change both.
+ */
+@Composable
+private fun formatBytes(bytes: Long): String {
+    val units = stringArrayResource(R.array.units_bytes)
+    val (value, unit, digits) = SizeFormat.scale(bytes, units.size)
+    return "%.${digits}f %s".format(value, units[unit])
 }
 
 // The typed getters arrived in API 33; the app supports 26.
