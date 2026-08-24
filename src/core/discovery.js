@@ -1,6 +1,7 @@
 import dgram from 'node:dgram';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
+import { lastContact } from './presence.js';
 import {
   DISCOVERY_PORT, MULTICAST_ADDR, TRANSFER_PORT,
   ANNOUNCE_INTERVAL_MS, PEER_TTL_MS, PROTOCOL_VERSION,
