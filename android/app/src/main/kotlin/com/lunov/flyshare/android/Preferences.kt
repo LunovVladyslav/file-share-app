@@ -43,6 +43,19 @@ class Preferences(context: Context) {
     private val _language = MutableStateFlow(Language.ofTag(store.getString(LANGUAGE, null)))
     val language: StateFlow<Language> = _language.asStateFlow()
 
+    /**
+     * A name the person chose, or null to keep whatever the phone calls itself.
+     * This is what other devices see, so it is worth letting them set it.
+     */
+    private val _deviceName = MutableStateFlow(store.getString(DEVICE_NAME, null))
+    val deviceName: StateFlow<String?> = _deviceName.asStateFlow()
+
+    fun setDeviceName(name: String?) {
+        val trimmed = name?.trim()?.take(40)?.takeIf { it.isNotEmpty() }
+        _deviceName.value = trimmed
+        store.edit().putString(DEVICE_NAME, trimmed).apply()
+    }
+
     fun setTheme(choice: ThemeChoice) {
         _theme.value = choice
         store.edit().putString(THEME, choice.name).apply()
@@ -60,5 +73,6 @@ class Preferences(context: Context) {
         const val FILE = "flyshare"
         const val THEME = "theme"
         const val LANGUAGE = "language"
+        const val DEVICE_NAME = "deviceName"
     }
 }

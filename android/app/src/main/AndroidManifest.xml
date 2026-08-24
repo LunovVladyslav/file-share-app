@@ -61,6 +61,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Opening a received file means handing another app a URI it is
+             allowed to read. A file:// path is refused outright since API 24;
+             this grants one file at a time and nothing else. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name="com.lunov.flyshare.android.TransferService"
             android:exported="false"

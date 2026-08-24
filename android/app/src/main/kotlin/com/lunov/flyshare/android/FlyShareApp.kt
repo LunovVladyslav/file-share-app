@@ -3,7 +3,15 @@ package com.lunov.flyshare.android
 import android.app.Application
 import android.content.Context
 import com.lunov.flyshare.core.DiscoveryService
+import com.lunov.flyshare.core.History
+import com.lunov.flyshare.core.HistoryEntry
 import com.lunov.flyshare.core.Identity
+import com.lunov.flyshare.core.Outcome
+import com.lunov.flyshare.core.Presence
+import com.lunov.flyshare.core.SendProgress
+import com.lunov.flyshare.core.SendStatus
+import com.lunov.flyshare.core.TransferProgress
+import com.lunov.flyshare.core.TransferStatus
 import com.lunov.flyshare.core.IncomingUi
 import com.lunov.flyshare.core.OutgoingUi
 import com.lunov.flyshare.core.PeerService
@@ -35,12 +43,42 @@ class FlyShareEngine(context: Context) {
     val trust = TrustStore(storage)
     val folder = DownloadFolder(app)
     val settings = Preferences(app)
+    val history = History(storage)
+
+    /** What the phone calls itself, unless the person has said otherwise. */
+    private val defaultName = DeviceIdentity.deviceName(app)
 
     val self = SelfDescription(
         id = identity.deviceId,
-        name = DeviceIdentity.deviceName(app),
+        name = settings.deviceName.value ?: defaultName,
         os = "android",
     )
+
+    /**
+     * What this device is currently called, as something a screen can watch.
+     *
+     * [SelfDescription.name] is a plain field — the network reads it whenever
+     * it announces, which is what that is for — but a field is not state, so a
+     * screen bound to it would never redraw when it changed.
+     */
+    private val _name = MutableStateFlow(self.name)
+    val name: StateFlow<String> = _name.asStateFlow()
+
+    /**
+     * Rename this device. The next announcement carries it — three seconds,
+     * not a restart — because [SelfDescription] is read afresh each time.
+     */
+    fun rename(name: String?) {
+        settings.setDeviceName(name)
+        val chosen = settings.deviceName.value ?: defaultName
+        self.name = chosen
+        _name.value = chosen
+    }
+
+    fun forget(deviceId: String) {
+        peers.pairing.forget(deviceId)
+        Presence.forget(deviceId)
+    }
 
     val discovery = DiscoveryService(self, AndroidMulticastPermit(app))
     val peers = PeerService(
@@ -75,10 +113,16 @@ class FlyShareEngine(context: Context) {
             peers.pairing.state.collect { android.util.Log.i(TAG, "pairing: $it") }
         }
         scope.launch {
-            peers.incoming.state.collect { _busy.value = isBusy() }
+            peers.incoming.state.collect { state ->
+                _busy.value = isBusy()
+                if (state is IncomingUi.Finished) history.record(state.progress.toHistory(folder.treeLabel()))
+            }
         }
         scope.launch {
-            peers.outgoing.state.collect { _busy.value = isBusy() }
+            peers.outgoing.state.collect { state ->
+                _busy.value = isBusy()
+                if (state is OutgoingUi.Finished) history.record(state.progress.toHistory())
+            }
         }
     }
 
@@ -115,3 +159,39 @@ class FlyShareApp : Application() {
             (context.applicationContext as? FlyShareApp ?: instance).engine
     }
 }
+
+/** A finished transfer, reduced to what is worth keeping. */
+private fun TransferProgress.toHistory(destination: String?) = HistoryEntry(
+    id = transferId,
+    outgoing = false,
+    peerName = peerName,
+    fileCount = fileCount,
+    totalSize = totalSize,
+    transferred = received,
+    outcome = when (status) {
+        TransferStatus.Complete -> Outcome.Complete
+        TransferStatus.Declined -> Outcome.Declined
+        else -> Outcome.Failed
+    },
+    detail = detail,
+    startedAt = startedAt,
+    finishedAt = System.currentTimeMillis(),
+    destination = savedTo ?: destination,
+)
+
+private fun SendProgress.toHistory() = HistoryEntry(
+    id = transferId.ifEmpty { "send-" + System.currentTimeMillis() },
+    outgoing = true,
+    peerName = peerName,
+    fileCount = fileCount,
+    totalSize = totalSize,
+    transferred = sent,
+    outcome = when (status) {
+        SendStatus.Complete -> Outcome.Complete
+        SendStatus.Declined -> Outcome.Declined
+        else -> Outcome.Failed
+    },
+    detail = detail,
+    startedAt = startedAt,
+    finishedAt = System.currentTimeMillis(),
+)

@@ -106,4 +106,33 @@
         <item>GB</item>
         <item>TB</item>
     </string-array>
+
+    <!-- Screens -->
+    <string name="history">History</string>
+    <string name="history_empty">Transfers you send and receive will be listed here.</string>
+    <string name="clear">Clear</string>
+    <string name="transfer">Transfer</string>
+    <string name="devices">Paired devices</string>
+    <string name="no_paired_devices">No devices yet. Tap one on the home screen to connect.</string>
+    <string name="forget">Forget</string>
+    <string name="forget_question">Forget “%1$s”? You will have to compare a code again to use it.</string>
+    <string name="paired_on">paired %1$s</string>
+    <string name="this_device">THIS DEVICE</string>
+    <string name="device_name">Device name</string>
+    <string name="device_name_note">What other devices see</string>
+    <string name="save">Save</string>
+    <string name="reset">Use the default</string>
+    <string name="download_folder">Download folder</string>
+    <string name="files_section">FILES</string>
+    <string name="received_label">Received</string>
+    <string name="sent_label">Sent</string>
+    <string name="open_file">Open</string>
+    <string name="cannot_open">That file is not there any more.</string>
+    <string name="no_app_for_file">Nothing on this phone opens that kind of file.</string>
+    <string name="average_rate">%1$s average</string>
+    <string name="nothing_in_progress">Nothing is being transferred right now.</string>
+    <string name="back">Back</string>
+    <string name="devices_section">PAIRED DEVICES</string>
+    <!-- The unit is translated; the suffix has to be too. -->
+    <string name="per_second">%1$s/s</string>
 </resources>

@@ -13,6 +13,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicLongArray
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
@@ -81,6 +82,7 @@ data class SendProgress(
     val security: String? = null,
     /** When bytes started moving, or 0 before that. */
     val startedAt: Long = 0,
+    val files: List<FileProgress> = emptyList(),
 ) {
     val fraction: Float get() = if (totalSize <= 0) 1f else (sent.toDouble() / totalSize).toFloat()
 }
@@ -145,11 +147,16 @@ class TransferSender(
         // would fold in however long the person took to accept, which is not
         // the transfer's time.
         var startedAt = 0L
+        val perFile = AtomicLongArray(files.size)
+
+        fun fileProgress(): List<FileProgress> = files.mapIndexed { index, file ->
+            FileProgress(file.rel, file.size, perFile.get(index))
+        }
 
         fun report(status: SendStatus, sent: Long = 0, detail: String? = null, security: String? = null) =
             SendProgress(
                 transferId, peer.name, files.size, sent, totalSize,
-                status, detail, security, startedAt,
+                status, detail, security, startedAt, fileProgress(),
             ).also(onProgress)
 
         report(SendStatus.Connecting)
@@ -220,7 +227,7 @@ class TransferSender(
             // so a transfer of nothing but empty files has no work at all.
             val workers = (1..minOf(streamCount, maxOf(1, work.size))).map { index ->
                 thread(name = "flyshare-send-$index") {
-                    runCatching { pump(peer, transferId, token, files, work, sent, totalSize, ::report) }
+                    runCatching { pump(peer, transferId, token, files, work, sent, perFile, ::report) }
                         .onFailure { failure.compareAndSet(null, it.message ?: "a data connection failed") }
                 }
             }
@@ -277,7 +284,7 @@ class TransferSender(
         files: List<TransferSource>,
         work: ConcurrentLinkedQueue<Chunk>,
         sent: AtomicLong,
-        totalSize: Long,
+        perFile: AtomicLongArray,
         report: (SendStatus, Long, String?, String?) -> SendProgress,
     ) {
         if (work.peek() == null) return
@@ -315,6 +322,7 @@ class TransferSender(
                         if (read <= 0) throw TransferException("${source.rel} ended sooner than declared")
                         data.output.write(buffer, 0, read)
                         written += read
+                        perFile.addAndGet(chunk.fileIndex, read.toLong())
                         report(SendStatus.Sending, sent.addAndGet(read.toLong()), null, null)
                     }
                 }

@@ -86,4 +86,32 @@
         <item>ГБ</item>
         <item>ТБ</item>
     </string-array>
+
+    <string name="history">Історія</string>
+    <string name="history_empty">Тут з’являться передачі, які ви надсилали й отримували.</string>
+    <string name="clear">Очистити</string>
+    <string name="transfer">Передача</string>
+    <string name="devices">Спарені пристрої</string>
+    <string name="no_paired_devices">Поки нічого. Натисніть пристрій на головному екрані, щоб з’єднати.</string>
+    <string name="forget">Забути</string>
+    <string name="forget_question">Забути «%1$s»? Щоб користуватися ним знову, доведеться ще раз звірити код.</string>
+    <string name="paired_on">спарено %1$s</string>
+    <string name="this_device">ЦЕЙ ПРИСТРІЙ</string>
+    <string name="device_name">Ім’я пристрою</string>
+    <string name="device_name_note">Те, що бачать інші пристрої</string>
+    <string name="save">Зберегти</string>
+    <string name="reset">Повернути типове</string>
+    <string name="download_folder">Тека завантажень</string>
+    <string name="files_section">ФАЙЛИ</string>
+    <string name="received_label">Отримано</string>
+    <string name="sent_label">Надіслано</string>
+    <string name="open_file">Відкрити</string>
+    <string name="cannot_open">Цього файлу вже немає.</string>
+    <string name="no_app_for_file">На цьому телефоні немає застосунку для такого файлу.</string>
+    <string name="average_rate">у середньому %1$s</string>
+    <string name="nothing_in_progress">Зараз нічого не передається.</string>
+    <string name="back">Назад</string>
+    <string name="devices_section">СПАРЕНІ ПРИСТРОЇ</string>
+    <!-- The unit is translated; the suffix has to be too. -->
+    <string name="per_second">%1$s/с</string>
 </resources>

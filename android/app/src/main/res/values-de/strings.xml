@@ -83,4 +83,32 @@
         <item>GB</item>
         <item>TB</item>
     </string-array>
+
+    <string name="history">Verlauf</string>
+    <string name="history_empty">Gesendete und empfangene Übertragungen erscheinen hier.</string>
+    <string name="clear">Leeren</string>
+    <string name="transfer">Übertragung</string>
+    <string name="devices">Gekoppelte Geräte</string>
+    <string name="no_paired_devices">Noch keine. Tippe auf dem Startbildschirm ein Gerät an, um es zu koppeln.</string>
+    <string name="forget">Entfernen</string>
+    <string name="forget_question">„%1$s“ entfernen? Zum erneuten Nutzen muss wieder ein Code verglichen werden.</string>
+    <string name="paired_on">gekoppelt %1$s</string>
+    <string name="this_device">DIESES GERÄT</string>
+    <string name="device_name">Gerätename</string>
+    <string name="device_name_note">Was andere Geräte sehen</string>
+    <string name="save">Speichern</string>
+    <string name="reset">Standard verwenden</string>
+    <string name="download_folder">Zielordner</string>
+    <string name="files_section">DATEIEN</string>
+    <string name="received_label">Empfangen</string>
+    <string name="sent_label">Gesendet</string>
+    <string name="open_file">Öffnen</string>
+    <string name="cannot_open">Diese Datei gibt es nicht mehr.</string>
+    <string name="no_app_for_file">Auf diesem Telefon öffnet nichts diesen Dateityp.</string>
+    <string name="average_rate">%1$s im Mittel</string>
+    <string name="nothing_in_progress">Gerade wird nichts übertragen.</string>
+    <string name="back">Zurück</string>
+    <string name="devices_section">GEKOPPELTE GERÄTE</string>
+    <!-- The unit is translated; the suffix has to be too. -->
+    <string name="per_second">%1$s/s</string>
 </resources>

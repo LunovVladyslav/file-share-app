@@ -87,4 +87,32 @@
         <item>GB</item>
         <item>TB</item>
     </string-array>
+
+    <string name="history">Historia</string>
+    <string name="history_empty">Tu pojawią się wysłane i odebrane transfery.</string>
+    <string name="clear">Wyczyść</string>
+    <string name="transfer">Transfer</string>
+    <string name="devices">Sparowane urządzenia</string>
+    <string name="no_paired_devices">Jeszcze nic. Dotknij urządzenia na ekranie głównym, aby połączyć.</string>
+    <string name="forget">Zapomnij</string>
+    <string name="forget_question">Zapomnieć „%1$s”? Aby użyć ponownie, trzeba znów porównać kod.</string>
+    <string name="paired_on">sparowano %1$s</string>
+    <string name="this_device">TO URZĄDZENIE</string>
+    <string name="device_name">Nazwa urządzenia</string>
+    <string name="device_name_note">To, co widzą inne urządzenia</string>
+    <string name="save">Zapisz</string>
+    <string name="reset">Przywróć domyślną</string>
+    <string name="download_folder">Folder pobierania</string>
+    <string name="files_section">PLIKI</string>
+    <string name="received_label">Odebrano</string>
+    <string name="sent_label">Wysłano</string>
+    <string name="open_file">Otwórz</string>
+    <string name="cannot_open">Tego pliku już nie ma.</string>
+    <string name="no_app_for_file">Nic na tym telefonie nie otwiera takiego pliku.</string>
+    <string name="average_rate">średnio %1$s</string>
+    <string name="nothing_in_progress">Nic teraz nie jest przesyłane.</string>
+    <string name="back">Wstecz</string>
+    <string name="devices_section">SPAROWANE URZĄDZENIA</string>
+    <!-- The unit is translated; the suffix has to be too. -->
+    <string name="per_second">%1$s/s</string>
 </resources>

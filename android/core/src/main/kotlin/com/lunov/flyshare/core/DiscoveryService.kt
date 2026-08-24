@@ -33,10 +33,18 @@ interface MulticastPermit {
     }
 }
 
-/** How this device describes itself in an announcement. */
+/**
+ * How this device describes itself in an announcement.
+ *
+ * [name] is the one field a person can change while the app runs, and every
+ * reader wants whatever it says now — the next announcement three seconds from
+ * here, the next pairing. Rebuilding the object instead would mean rebuilding
+ * discovery and the listening socket around it, which is a lot of machinery
+ * for renaming a phone.
+ */
 data class SelfDescription(
     val id: String,
-    val name: String,
+    @Volatile var name: String,
     val os: String = "android",
     val port: Int = TRANSFER_PORT,
 )

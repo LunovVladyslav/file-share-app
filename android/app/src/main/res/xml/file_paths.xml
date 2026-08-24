@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Only the folder received files land in when no document tree has been
+    chosen. A URI handed to another app has to be granted, and granting the
+    whole of external storage to open one photo would be careless.
+-->
+<paths>
+    <external-files-path name="downloads" path="Download/" />
+</paths>

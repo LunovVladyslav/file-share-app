@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicLongArray
 
 /** A file the sender says it is about to send. */
 data class IncomingFile(val rel: String, val size: Long)
@@ -25,6 +26,32 @@ data class IncomingOffer(
 
 enum class TransferStatus { Offered, Receiving, Complete, Declined, Failed }
 
+/** Where one file is up to. */
+enum class FileState { Waiting, Moving, Done }
+
+/**
+ * One file inside a transfer.
+ *
+ * Carried per update rather than fetched on demand: a person who opens a
+ * transfer wants to watch it, and a list that has to be polled separately
+ * always lags the bar above it by however long the poll took.
+ */
+data class FileProgress(
+    val rel: String,
+    val size: Long,
+    val transferred: Long,
+    /** Where it landed, once there is somewhere to point at. */
+    val location: String? = null,
+) {
+    val state: FileState get() = when {
+        size == 0L || transferred >= size -> FileState.Done
+        transferred > 0 -> FileState.Moving
+        else -> FileState.Waiting
+    }
+
+    val fraction: Float get() = if (size <= 0) 1f else (transferred.toDouble() / size).toFloat()
+}
+
 data class TransferProgress(
     val transferId: String,
     val peerName: String,
@@ -36,6 +63,7 @@ data class TransferProgress(
     val savedTo: String? = null,
     /** When bytes started moving, or 0 before that. */
     val startedAt: Long = 0,
+    val files: List<FileProgress> = emptyList(),
 ) {
     val fraction: Float get() = if (totalSize <= 0) 1f else (received.toDouble() / totalSize).toFloat()
 }
@@ -86,7 +114,10 @@ class TransferReceiver(
             ?: files.sumOf { it.size }
         val incoming = IncomingOffer(transferId, peerId, peerName, files, declared)
 
-        onUpdate(TransferProgress(transferId, peerName, files.size, 0, declared, TransferStatus.Offered))
+        onUpdate(TransferProgress(
+            transferId, peerName, files.size, 0, declared, TransferStatus.Offered,
+            files = files.map { FileProgress(it.rel, it.size, 0) },
+        ))
 
         // Nothing touches storage before the answer — section 9.2.
         if (!ask(incoming)) {
@@ -106,6 +137,7 @@ class TransferReceiver(
             // rather than three quarters of the way through.
             transfer.files = files
             transfer.sinks = files.map { target.create(it.rel, it.size) }
+            transfer.perFile = AtomicLongArray(files.size)
         } catch (e: Exception) {
             transfer.closeAll(discard = true)
             Frames.write(connection.output, frame(
@@ -132,7 +164,7 @@ class TransferReceiver(
         transfer.startedAt = System.currentTimeMillis()
         onUpdate(TransferProgress(
             transferId, peerName, files.size, 0, declared, TransferStatus.Receiving,
-            startedAt = transfer.startedAt,
+            startedAt = transfer.startedAt, files = transfer.fileProgress(),
         ))
 
         try {
@@ -153,7 +185,7 @@ class TransferReceiver(
                 onUpdate(TransferProgress(
                     transferId, peerName, files.size, transfer.received.get(), declared,
                     TransferStatus.Complete, savedTo = store().label,
-                    startedAt = transfer.startedAt,
+                    startedAt = transfer.startedAt, files = transfer.fileProgress(),
                 ))
             } else {
                 transfer.closeAll(discard = true)
@@ -163,6 +195,7 @@ class TransferReceiver(
                 onUpdate(TransferProgress(
                     transferId, peerName, files.size, transfer.received.get(), declared,
                     TransferStatus.Failed, outcome, startedAt = transfer.startedAt,
+                    files = transfer.fileProgress(),
                 ))
             }
         } finally {
@@ -279,6 +312,7 @@ class TransferReceiver(
             input.readFully(buffer, 0, want)
             sink.write(offset + written, buffer, want)
             written += want
+            transfer.perFile.addAndGet(index, want.toLong())
             transfer.report(transfer.received.addAndGet(want.toLong()), onUpdate)
         }
 
@@ -323,6 +357,19 @@ class TransferReceiver(
         var watcher: Thread? = null
         var startedAt: Long = 0
 
+        /** Bytes written per file, indexed the same as [files]. */
+        var perFile: AtomicLongArray = AtomicLongArray(0)
+
+        /** A snapshot for the interface, built where the counters live. */
+        fun fileProgress(): List<FileProgress> = files.mapIndexed { index, file ->
+            FileProgress(
+                rel = file.rel,
+                size = file.size,
+                transferred = if (index < perFile.length()) perFile.get(index) else 0,
+                location = sinks.getOrNull(index)?.location,
+            )
+        }
+
         /** Set by the control connection; read by every data connection. */
         val paused = AtomicBoolean(false)
 
@@ -363,7 +410,7 @@ class TransferReceiver(
             if (!lastReport.compareAndSet(previous, now)) return
             onUpdate(TransferProgress(
                 id, peerName, files.size, total, totalSize, TransferStatus.Receiving,
-                startedAt = startedAt,
+                startedAt = startedAt, files = fileProgress(),
             ))
         }
 

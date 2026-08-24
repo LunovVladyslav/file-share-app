@@ -56,7 +56,7 @@ class AndroidDownloadStore(
 
         // A provider is free to adjust the display name — appending an
         // extension it thinks the type needs, say. Whatever it settled on is
-        // what the person will look for, so that is what gets reported.
+        // what the person will look for.
         val actual = document.name ?: name
 
         val descriptor = resolver.openFileDescriptor(document.uri, "rw")
@@ -67,7 +67,9 @@ class AndroidDownloadStore(
             // never have to extend the file.
             runCatching { Os.ftruncate(descriptor.fileDescriptor, size) }
         }
-        return DocumentSink(document, descriptor, "$label/$actual")
+        // The document's own URI, not a pretty path: this is what "open" needs
+        // to hand to another app, and a display string cannot be opened.
+        return DocumentSink(document, descriptor, document.uri.toString())
     }
 
     private fun childDirectory(parent: DocumentFile, name: String): DocumentFile {
