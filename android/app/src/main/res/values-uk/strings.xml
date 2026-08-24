@@ -68,6 +68,12 @@
         <item quantity="other">%1$d файла</item>
     </plurals>
 
+    <string name="time_seconds">%1$d с</string>
+    <string name="time_minutes">%1$d хв %2$d с</string>
+    <string name="time_hours">%1$d год %2$d хв</string>
+    <string name="transfer_elapsed">триває %1$s</string>
+    <string name="transfer_remaining">лишилось %1$s</string>
+
     <!-- Byte units, matching ui/i18n.js on the desktop. A kilobyte is 1000
          bytes on both sides; see formatBytes() for why that matters. -->
     <string-array name="units_bytes">

@@ -432,10 +432,18 @@ function updateTransfer(node, transfer) {
     node.progress.textContent = `${t.t('transfer.of', {
       received: bytes(transfer.received), total: bytes(transfer.totalSize),
     })} · ${files}`;
-    const remaining = transfer.speed > 0 ? (transfer.totalSize - transfer.received) / transfer.speed : NaN;
-    node.eta.textContent = active && transfer.speed > 0
-      ? t.t('transfer.remaining', { time: duration(remaining) })
-      : '';
+    // Elapsed as well as remaining. A long transfer wants both: the estimate
+    // moves around with the link, and how long it has already been running is
+    // the one number that cannot be wrong.
+    const parts = [];
+    if (transfer.startedAt) {
+      parts.push(t.t('transfer.elapsed', { time: duration((Date.now() - transfer.startedAt) / 1000) }));
+    }
+    if (active && transfer.speed > 0) {
+      const remaining = (transfer.totalSize - transfer.received) / transfer.speed;
+      parts.push(t.t('transfer.remaining', { time: duration(remaining) }));
+    }
+    node.eta.textContent = parts.join(' · ');
   }
 
   updateTrace(node, transfer, active);

@@ -8,6 +8,7 @@ import { buildManifest } from './manifest.js';
 import { peerPublicKey } from './trust.js';
 import { initiatePairing } from './pairing.js';
 import { newEphemeralKeyPair, deriveSessionKey, secureClient, describeSecurity } from './secure.js';
+import { noteContact } from './presence.js';
 import { SpeedMeter } from '../util/speed.js';
 
 /**
@@ -468,6 +469,8 @@ export async function connectSecure(peer) {
     socket.destroy();
     throw new Error('the device at that address is not the one that was paired');
   }
+  // Better evidence of presence than an announcement: this one arrived.
+  noteContact(peer.id);
 
   const psk = deriveSessionKey({
     ephemeral,

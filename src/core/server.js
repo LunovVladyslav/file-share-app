@@ -8,6 +8,7 @@ import { TRANSFER_PORT, PROTOCOL_VERSION, loadConfig } from './config.js';
 import { encodeFrame, readFrames, readFirstFrame, MAX_FRAME } from './protocol.js';
 import { safeJoin, uniquePath, sanitizeSegment } from './manifest.js';
 import { peerPublicKey, refreshPeerName } from './trust.js';
+import { noteContact } from './presence.js';
 import { newEphemeralKeyPair, deriveSessionKey, secureServer, describeSecurity } from './secure.js';
 import { IncomingPairing } from './pairing.js';
 import { SpeedMeter } from '../util/speed.js';
@@ -154,6 +155,9 @@ export class TransferServer extends EventEmitter {
       return secure.destroy();
     }
 
+    // The handshake completed, so this device is unquestionably present —
+    // which discovery's expiry has no other way of knowing.
+    noteContact(hello.deviceId);
     const identity = { deviceId: hello.deviceId, security: describeSecurity(secure) };
     if (next.frame.t === 'offer') this.#handleOffer(secure, next.frame, next.rest, identity);
     else if (next.frame.t === 'data') this.#handleData(secure, next.frame, next.rest);

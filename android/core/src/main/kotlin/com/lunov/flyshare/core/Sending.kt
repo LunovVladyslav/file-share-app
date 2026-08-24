@@ -79,6 +79,8 @@ data class SendProgress(
     val status: SendStatus,
     val detail: String? = null,
     val security: String? = null,
+    /** When bytes started moving, or 0 before that. */
+    val startedAt: Long = 0,
 ) {
     val fraction: Float get() = if (totalSize <= 0) 1f else (sent.toDouble() / totalSize).toFloat()
 }
@@ -114,9 +116,16 @@ class TransferSender(
         val totalSize = files.sumOf { it.size }
         val streamCount = streams.coerceIn(1, MAX_STREAMS)
 
+        // Set once, when bytes actually start moving. Counting from the offer
+        // would fold in however long the person took to accept, which is not
+        // the transfer's time.
+        var startedAt = 0L
+
         fun report(status: SendStatus, sent: Long = 0, detail: String? = null, security: String? = null) =
-            SendProgress(transferId, peer.name, files.size, sent, totalSize, status, detail, security)
-                .also(onProgress)
+            SendProgress(
+                transferId, peer.name, files.size, sent, totalSize,
+                status, detail, security, startedAt,
+            ).also(onProgress)
 
         report(SendStatus.Connecting)
 
@@ -148,6 +157,7 @@ class TransferSender(
             val token = answer.string("token")
                 ?: return report(SendStatus.Failed, detail = "the other device sent no token")
 
+            startedAt = System.currentTimeMillis()
             report(SendStatus.Sending, security = channel.description)
             val sent = AtomicLong()
             val failure = AtomicReference<String?>(null)

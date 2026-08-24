@@ -168,6 +168,8 @@ object SecureSession {
             if (reply.string("deviceId") != peer.id) {
                 throw SessionException("the device at that address is not the one that was paired")
             }
+            // Better evidence of presence than an announcement: this arrived.
+            Presence.noteContact(peer.id)
 
             val psk = Sas.sessionKey(
                 ownEphemeralPrivate = ephemeralPrivate,
@@ -225,6 +227,8 @@ object SecureSession {
             ))
             throw SessionException("peer is not paired", needsPairing = true)
         }
+
+        Presence.noteContact(peerId)
 
         val (ephemeralPrivate, ephemeralPublic) = Crypto.newKeyPair()
         Frames.write(output, frame(

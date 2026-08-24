@@ -154,12 +154,18 @@ class PeerTable(private val selfId: String, private val clock: () -> Long = Syst
     @Synchronized
     fun onBye(id: String): Boolean = id != selfId && peers.remove(id) != null
 
-    /** Drop anything that has gone quiet. */
+    /**
+     * Drop anything that has gone quiet.
+     *
+     * A connection that succeeded counts as having seen the device, and counts
+     * for more than an announcement that may never have arrived — see
+     * [Presence].
+     */
     @Synchronized
     fun reap(): Boolean {
         val cutoff = clock() - PEER_TTL_MS
         val before = peers.size
-        peers.values.removeAll { it.lastSeen < cutoff }
+        peers.values.removeAll { maxOf(it.lastSeen, Presence.lastContact(it.id)) < cutoff }
         return peers.size != before
     }
 }

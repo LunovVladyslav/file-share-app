@@ -69,6 +69,12 @@
         <item quantity="other">%1$d pliku</item>
     </plurals>
 
+    <string name="time_seconds">%1$d s</string>
+    <string name="time_minutes">%1$d min %2$d s</string>
+    <string name="time_hours">%1$d godz %2$d min</string>
+    <string name="transfer_elapsed">trwa %1$s</string>
+    <string name="transfer_remaining">pozostało %1$s</string>
+
     <!-- Byte units, matching ui/i18n.js on the desktop. A kilobyte is 1000
          bytes on both sides; see formatBytes() for why that matters. -->
     <string-array name="units_bytes">

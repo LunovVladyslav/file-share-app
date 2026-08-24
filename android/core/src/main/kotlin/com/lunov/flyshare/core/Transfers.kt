@@ -34,6 +34,8 @@ data class TransferProgress(
     val status: TransferStatus,
     val detail: String? = null,
     val savedTo: String? = null,
+    /** When bytes started moving, or 0 before that. */
+    val startedAt: Long = 0,
 ) {
     val fraction: Float get() = if (totalSize <= 0) 1f else (received.toDouble() / totalSize).toFloat()
 }
@@ -118,7 +120,13 @@ class TransferReceiver(
 
         active[transferId] = transfer
         Frames.write(connection.output, frame("t" to "offer-result", "accept" to true, "token" to token))
-        onUpdate(TransferProgress(transferId, peerName, files.size, 0, declared, TransferStatus.Receiving))
+        // From acceptance, not from the offer: the wait for a person to decide
+        // is not the transfer's time.
+        transfer.startedAt = System.currentTimeMillis()
+        onUpdate(TransferProgress(
+            transferId, peerName, files.size, 0, declared, TransferStatus.Receiving,
+            startedAt = transfer.startedAt,
+        ))
 
         try {
             connection.readTimeout(0) // idle for the whole transfer; only EOF ends it
@@ -138,6 +146,7 @@ class TransferReceiver(
                 onUpdate(TransferProgress(
                     transferId, peerName, files.size, transfer.received.get(), declared,
                     TransferStatus.Complete, savedTo = store().label,
+                    startedAt = transfer.startedAt,
                 ))
             } else {
                 transfer.closeAll(discard = true)
@@ -146,7 +155,7 @@ class TransferReceiver(
                 }
                 onUpdate(TransferProgress(
                     transferId, peerName, files.size, transfer.received.get(), declared,
-                    TransferStatus.Failed, outcome,
+                    TransferStatus.Failed, outcome, startedAt = transfer.startedAt,
                 ))
             }
         } finally {
@@ -280,6 +289,7 @@ class TransferReceiver(
         var files: List<IncomingFile> = emptyList()
         var sinks: List<DownloadSink> = emptyList()
         var watcher: Thread? = null
+        var startedAt: Long = 0
 
         companion object {
             val TRACE: Boolean = System.getenv("FLYSHARE_TRACE") != null
@@ -318,6 +328,7 @@ class TransferReceiver(
             if (!lastReport.compareAndSet(previous, now)) return
             onUpdate(TransferProgress(
                 id, peerName, files.size, total, totalSize, TransferStatus.Receiving,
+                startedAt = startedAt,
             ))
         }
 

@@ -151,6 +151,15 @@ export class Discovery extends EventEmitter {
     if (!this.#socket) return;
     const buf = Buffer.from(JSON.stringify(payload));
     const targets = [MULTICAST_ADDR, ...localInterfaces().map((i) => i.broadcast)];
+
+    // Also straight to everyone already known. Multicast and broadcast go out
+    // at the lowest basic rate with no acknowledgement and are the first
+    // frames an access point drops under load; a unicast datagram is rate
+    // adapted and acknowledged at the link layer, so it survives exactly the
+    // conditions — a transfer saturating the air — in which a peer would
+    // otherwise flicker out of the list.
+    for (const peer of this.#peers.values()) targets.push(peer.address);
+
     for (const addr of new Set(targets)) {
       this.#socket.send(buf, DISCOVERY_PORT, addr, () => { /* best effort */ });
     }
@@ -199,7 +208,9 @@ export class Discovery extends EventEmitter {
     const cutoff = Date.now() - PEER_TTL_MS;
     let removed = false;
     for (const [id, peer] of this.#peers) {
-      if (peer.lastSeen < cutoff) {
+      // A connection that succeeded counts as having seen the device, and
+      // counts for more than an announcement that may never have arrived.
+      if (Math.max(peer.lastSeen, lastContact(id)) < cutoff) {
         this.#peers.delete(id);
         removed = true;
       }

@@ -41,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -77,9 +78,11 @@ import com.lunov.flyshare.core.SendStatus
 import com.lunov.flyshare.core.SizeFormat
 import com.lunov.flyshare.core.TransferProgress
 import com.lunov.flyshare.core.TransferStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.roundToInt
 import java.util.Locale
 
 /**
@@ -467,6 +470,8 @@ private fun ReceivingCard(state: IncomingUi, onDismiss: () -> Unit) {
         fraction = progress.fraction.takeIf { progress.status == TransferStatus.Receiving },
         detail = progress.detail,
         onDismiss = onDismiss.takeIf { progress.status != TransferStatus.Receiving },
+        startedAt = progress.startedAt,
+        remainingSeconds = estimate(progress.startedAt, progress.received, progress.totalSize),
     )
 }
 
@@ -504,7 +509,24 @@ private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -
         detail = progress.detail,
         onDismiss = if (running) null else onDismiss,
         onCancel = onCancel.takeIf { running },
+        startedAt = progress.startedAt,
+        remainingSeconds = estimate(progress.startedAt, progress.sent, progress.totalSize),
     )
+}
+
+
+/**
+ * Seconds left, from the average rate so far.
+ *
+ * The average rather than the instantaneous rate: a Wi-Fi link swings enough
+ * that a live figure makes the estimate jump around, and over a long transfer
+ * the average is both steadier and closer to right.
+ */
+private fun estimate(startedAt: Long, done: Long, total: Long): Double? {
+    if (startedAt <= 0L || done <= 0L || total <= done) return null
+    val elapsed = (System.currentTimeMillis() - startedAt) / 1000.0
+    if (elapsed <= 0) return null
+    return (total - done) / (done / elapsed)
 }
 
 @Composable
@@ -521,6 +543,8 @@ private fun TransferCard(
     detail: String?,
     onDismiss: (() -> Unit)?,
     onCancel: (() -> Unit)? = null,
+    startedAt: Long = 0,
+    remainingSeconds: Double? = null,
 ) {
     val palette = LocalPalette.current
 
@@ -552,7 +576,10 @@ private fun TransferCard(
 
         Text(line, style = Type.meta, color = palette.ink3, modifier = Modifier.padding(top = 4.dp))
 
-        if (fraction != null) Track(fraction, Modifier.padding(top = 12.dp))
+        if (fraction != null) {
+            Track(fraction, Modifier.padding(top = 12.dp))
+            Timing(startedAt, remainingSeconds, Modifier.padding(top = 8.dp))
+        }
 
         detail?.let {
             Text(it, style = Type.body, color = palette.err, modifier = Modifier.padding(top = 8.dp))
@@ -597,6 +624,62 @@ private fun Track(fraction: Float, modifier: Modifier = Modifier) {
                 .clip(RoundedCornerShape(2.dp))
                 .background(palette.signal),
         )
+    }
+}
+
+
+/**
+ * How long it has been running, and how long is left.
+ *
+ * Both, because they answer different questions. The estimate moves around
+ * with the link and is a guess; the elapsed time is the one number on the card
+ * that cannot be wrong, and on a transfer measured in hours it is the one
+ * people actually watch.
+ */
+@Composable
+private fun Timing(startedAt: Long, remainingSeconds: Double?, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    if (startedAt <= 0L) return
+
+    // A tick a second: the elapsed reading has to move on its own, not only
+    // when a progress update happens to arrive.
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(startedAt) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+
+    Row(modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.transfer_elapsed, formatDuration((now - startedAt) / 1000.0)),
+            style = Type.meta,
+            color = palette.ink3,
+        )
+        if (remainingSeconds != null && remainingSeconds.isFinite() && remainingSeconds >= 0) {
+            Text(
+                stringResource(R.string.transfer_remaining, formatDuration(remainingSeconds)),
+                style = Type.meta,
+                color = palette.ink3,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** The same shape as duration() in ui/app.js: seconds, then minutes, then hours. */
+@Composable
+private fun formatDuration(seconds: Double): String {
+    if (seconds < 60) {
+        return stringResource(R.string.time_seconds, maxOf(1.0, seconds).roundToInt())
+    }
+    val minutes = (seconds / 60).toInt()
+    return if (minutes < 60) {
+        stringResource(R.string.time_minutes, minutes, (seconds % 60).roundToInt())
+    } else {
+        stringResource(R.string.time_hours, minutes / 60, minutes % 60)
     }
 }
 

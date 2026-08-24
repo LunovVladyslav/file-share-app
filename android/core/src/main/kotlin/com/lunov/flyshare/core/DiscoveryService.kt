@@ -159,6 +159,13 @@ class DiscoveryService(
         val targets = buildSet {
             add(group)
             localInterfaces().mapNotNullTo(this) { it.broadcast }
+            // And straight to everyone already known. Multicast and broadcast
+            // leave at the lowest basic rate, unacknowledged, and are the first
+            // frames an access point drops under load; a unicast datagram is
+            // rate adapted and acknowledged at the link layer, so it survives
+            // exactly the conditions — a transfer saturating the air — under
+            // which a peer would otherwise flicker out of the list.
+            peerTable.snapshot().mapTo(this) { it.address }
         }
         for (target in targets) {
             runCatching {

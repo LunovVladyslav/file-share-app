@@ -57,6 +57,7 @@ const STRINGS = {
     'transfer.andMore': '+ {n} more',
     'transfer.of': '{received} of {total}',
     'transfer.remaining': '{time} left',
+    'transfer.elapsed': '{time} so far',
     'transfer.average': 'avg {rate}',
     'transfer.files': { one: '{n} file', other: '{n} files' },
 
@@ -154,6 +155,7 @@ const STRINGS = {
     'transfer.andMore': '+ {n} weitere',
     'transfer.of': '{received} von {total}',
     'transfer.remaining': 'noch {time}',
+    'transfer.elapsed': '{time} bisher',
     'transfer.average': 'Ø {rate}',
     'transfer.files': { one: '{n} Datei', other: '{n} Dateien' },
 
@@ -251,6 +253,7 @@ const STRINGS = {
     'transfer.andMore': '+ ще {n}',
     'transfer.of': '{received} з {total}',
     'transfer.remaining': 'лишилось {time}',
+    'transfer.elapsed': 'триває {time}',
     'transfer.average': 'середньо {rate}',
     'transfer.files': { one: '{n} файл', few: '{n} файли', many: '{n} файлів' },
 
@@ -348,6 +351,7 @@ const STRINGS = {
     'transfer.andMore': '+ jeszcze {n}',
     'transfer.of': '{received} z {total}',
     'transfer.remaining': 'pozostało {time}',
+    'transfer.elapsed': 'trwa {time}',
     'transfer.average': 'średnio {rate}',
     'transfer.files': { one: '{n} plik', few: '{n} pliki', many: '{n} plików' },
 
