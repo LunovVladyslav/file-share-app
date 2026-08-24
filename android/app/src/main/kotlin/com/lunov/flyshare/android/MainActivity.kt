@@ -207,6 +207,9 @@ private fun App(model: FlyShareViewModel, shared: MutableStateFlow<List<Uri>>) {
                 outgoing = outgoing,
                 onDismissTransfer = model::dismissTransfer,
                 onCancelSend = model::cancelSend,
+                onPauseSend = model::pauseSend,
+                onResumeSend = model::resumeSend,
+                canPause = model.canPause,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -300,6 +303,13 @@ class FlyShareViewModel(context: Context) : ViewModel() {
 
     fun cancelSend() = engine.peers.outgoing.cancel()
 
+    /** True once the receiver has said it understands a pause — §9.5. */
+    val canPause: Boolean get() = engine.peers.outgoing.canPause
+
+    fun pauseSend() = engine.peers.outgoing.pause()
+
+    fun resumeSend() = engine.peers.outgoing.resume()
+
     fun folderChosen(uri: Uri?) {
         if (uri == null) return
         engine.folder.remember(uri)
@@ -365,6 +375,9 @@ private fun HomeScreen(
     outgoing: OutgoingUi,
     onDismissTransfer: () -> Unit,
     onCancelSend: () -> Unit,
+    onPauseSend: () -> Unit,
+    onResumeSend: () -> Unit,
+    canPause: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
@@ -388,7 +401,14 @@ private fun HomeScreen(
         if (incoming !is IncomingUi.None && incoming !is IncomingUi.Ask) {
             ReceivingCard(incoming, onDismissTransfer)
         }
-        SendingCard(outgoing, onDismissTransfer, onCancelSend)
+        SendingCard(
+            state = outgoing,
+            onDismiss = onDismissTransfer,
+            onCancel = onCancelSend,
+            onPause = onPauseSend,
+            onResume = onResumeSend,
+            canPause = canPause,
+        )
 
         Eyebrow(
             label = if (waitingToSend > 0) {
@@ -476,7 +496,14 @@ private fun ReceivingCard(state: IncomingUi, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -> Unit) {
+private fun SendingCard(
+    state: OutgoingUi,
+    onDismiss: () -> Unit,
+    onCancel: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    canPause: Boolean,
+) {
     val progress: SendProgress = when (state) {
         is OutgoingUi.Busy -> state.progress
         is OutgoingUi.Finished -> state.progress
@@ -486,7 +513,8 @@ private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -
 
     val running = progress.status == SendStatus.Sending ||
         progress.status == SendStatus.Connecting ||
-        progress.status == SendStatus.Waiting
+        progress.status == SendStatus.Waiting ||
+        progress.status == SendStatus.Paused
 
     TransferCard(
         title = when (progress.status) {
@@ -496,19 +524,27 @@ private fun SendingCard(state: OutgoingUi, onDismiss: () -> Unit, onCancel: () -
             SendStatus.Waiting -> stringResource(R.string.waiting_for, progress.peerName)
             SendStatus.Connecting -> stringResource(R.string.connecting_to, progress.peerName)
             SendStatus.Sending -> stringResource(R.string.sending_to, progress.peerName)
+            SendStatus.Paused -> stringResource(R.string.sending_to, progress.peerName)
         },
         status = when (progress.status) {
             SendStatus.Complete -> stringResource(R.string.status_done) to palette.ok
             SendStatus.Failed, SendStatus.Declined ->
                 stringResource(R.string.status_failed) to palette.err
             SendStatus.Sending -> stringResource(R.string.status_sending) to palette.ink3
+            SendStatus.Paused -> stringResource(R.string.status_paused) to palette.signal
             else -> stringResource(R.string.status_waiting) to palette.ink3
         },
         line = countAndSize(progress.fileCount, progress.sent, progress.totalSize),
-        fraction = progress.fraction.takeIf { progress.status == SendStatus.Sending },
+        fraction = progress.fraction.takeIf {
+            progress.status == SendStatus.Sending || progress.status == SendStatus.Paused
+        },
         detail = progress.detail,
         onDismiss = if (running) null else onDismiss,
         onCancel = onCancel.takeIf { running },
+        onPause = onPause.takeIf { canPause && progress.status == SendStatus.Sending },
+        onResume = onResume.takeIf { progress.status == SendStatus.Paused },
+        // The clock stops with the transfer: a paused hour is not transfer time.
+        ticking = progress.status != SendStatus.Paused,
         startedAt = progress.startedAt,
         remainingSeconds = estimate(progress.startedAt, progress.sent, progress.totalSize),
     )
@@ -543,6 +579,9 @@ private fun TransferCard(
     detail: String?,
     onDismiss: (() -> Unit)?,
     onCancel: (() -> Unit)? = null,
+    onPause: (() -> Unit)? = null,
+    onResume: (() -> Unit)? = null,
+    ticking: Boolean = true,
     startedAt: Long = 0,
     remainingSeconds: Double? = null,
 ) {
@@ -578,7 +617,7 @@ private fun TransferCard(
 
         if (fraction != null) {
             Track(fraction, Modifier.padding(top = 12.dp))
-            Timing(startedAt, remainingSeconds, Modifier.padding(top = 8.dp))
+            Timing(startedAt, remainingSeconds, ticking, Modifier.padding(top = 8.dp))
         }
 
         detail?.let {
@@ -637,15 +676,21 @@ private fun Track(fraction: Float, modifier: Modifier = Modifier) {
  * people actually watch.
  */
 @Composable
-private fun Timing(startedAt: Long, remainingSeconds: Double?, modifier: Modifier = Modifier) {
+private fun Timing(
+    startedAt: Long,
+    remainingSeconds: Double?,
+    ticking: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     val palette = LocalPalette.current
     if (startedAt <= 0L) return
 
     // A tick a second: the elapsed reading has to move on its own, not only
-    // when a progress update happens to arrive.
+    // when a progress update happens to arrive. It stops when the transfer
+    // does, so a paused card does not quietly count the pause as its own time.
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(startedAt) {
-        while (true) {
+    LaunchedEffect(startedAt, ticking) {
+        while (ticking) {
             now = System.currentTimeMillis()
             delay(1000)
         }

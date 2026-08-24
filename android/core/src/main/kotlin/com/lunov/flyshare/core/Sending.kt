@@ -68,7 +68,7 @@ class FileSource(private val file: File, override val rel: String) : TransferSou
     }
 }
 
-enum class SendStatus { Connecting, Waiting, Sending, Complete, Declined, Failed }
+enum class SendStatus { Connecting, Waiting, Sending, Paused, Complete, Declined, Failed }
 
 data class SendProgress(
     val transferId: String,
@@ -102,7 +102,30 @@ class TransferSender(
     /** Cancels the transfer in progress, if there is one. */
     @Volatile private var cancelled: String? = null
 
-    fun cancel(reason: String = "cancelled") { cancelled = reason }
+    /** Held while paused; the workers park on it between chunks. */
+    private val gate = Object()
+    @Volatile private var paused = false
+
+    /** Only offered when the receiver said it understands §9.5. */
+    @Volatile var canPause: Boolean = false
+        private set
+
+    fun cancel(reason: String = "cancelled") {
+        cancelled = reason
+        resume() // so a paused worker wakes up to notice
+    }
+
+    fun pause() {
+        if (!canPause) return
+        paused = true
+    }
+
+    fun resume() {
+        synchronized(gate) {
+            paused = false
+            gate.notifyAll()
+        }
+    }
 
     fun send(
         peer: Peer,
@@ -111,6 +134,8 @@ class TransferSender(
     ): SendProgress {
         require(files.isNotEmpty()) { "nothing to send" }
         cancelled = null
+        paused = false
+        sentSoFar.set(0)
 
         val transferId = UUID.randomUUID().toString()
         val totalSize = files.sumOf { it.size }
@@ -156,10 +181,38 @@ class TransferSender(
             }
             val token = answer.string("token")
                 ?: return report(SendStatus.Failed, detail = "the other device sent no token")
+            canPause = answer.bool("canPause") == true
+            paused = false
 
             startedAt = System.currentTimeMillis()
             report(SendStatus.Sending, security = channel.description)
-            val sent = AtomicLong()
+
+            // The workers park between chunks; this is what tells the receiver
+            // to stop counting the silence as a stall, and what wakes them.
+            var announced = false
+            val announcer = thread(name = "flyshare-pause", isDaemon = true) {
+                // Interrupting a sleeping thread throws; that is how it stops,
+                // not something to report.
+                runCatching {
+                while (!Thread.currentThread().isInterrupted) {
+                    val now = paused
+                    if (now != announced) {
+                        announced = now
+                        runCatching {
+                            Frames.write(channel.output, frame("t" to if (now) "pause" else "resume"))
+                        }
+                        report(
+                            if (now) SendStatus.Paused else SendStatus.Sending,
+                            sentSoFar.get(),
+                            security = channel.description,
+                        )
+                    }
+                    Thread.sleep(PAUSE_POLL_MS)
+                }
+                }
+            }
+
+            val sent = sentSoFar
             val failure = AtomicReference<String?>(null)
             val work = ConcurrentLinkedQueue(plan(files))
 
@@ -172,6 +225,7 @@ class TransferSender(
                 }
             }
             workers.forEach { it.join() }
+            announcer.interrupt()
 
             cancelled?.let { reason ->
                 runCatching { Frames.write(channel.output, frame("t" to "cancel", "reason" to reason)) }
@@ -201,6 +255,20 @@ class TransferSender(
         }
     }
 
+
+    /**
+     * Park while paused. Called only between chunks, which is what makes a
+     * pause free: nothing is half-delivered, so nothing is re-sent and the
+     * receiver counts no byte twice.
+     */
+    private fun awaitResume() {
+        synchronized(gate) {
+            while (paused && cancelled == null) {
+                runCatching { gate.wait(PAUSE_POLL_MS) }
+            }
+        }
+    }
+
     /** One data connection, taking chunks until the queue is empty. */
     private fun pump(
         peer: Peer,
@@ -226,6 +294,8 @@ class TransferSender(
             val open = HashMap<Int, SourceHandle>()
             try {
                 while (true) {
+                    if (cancelled != null) return
+                    awaitResume()
                     if (cancelled != null) return
                     val chunk = work.poll() ?: break
                     val source = files[chunk.fileIndex]
@@ -308,7 +378,11 @@ class TransferSender(
 
     private data class Chunk(val fileIndex: Int, val offset: Long, val length: Long)
 
+    /** Shared with the announcer thread so a paused card still shows progress. */
+    private val sentSoFar = AtomicLong()
+
     private companion object {
+        const val PAUSE_POLL_MS = 200L
         const val DEFAULT_STREAMS = 4
         const val MAX_STREAMS = 16
 

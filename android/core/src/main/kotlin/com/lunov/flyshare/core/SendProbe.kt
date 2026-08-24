@@ -58,13 +58,38 @@ object SendProbe {
         val files = FileSource.tree(directory)
         println("sending ${files.size} file(s), ${files.sumOf { it.size }} bytes to $host:$port")
 
+        // Pause in flight and continue, so §9.5 is exercised against the real
+        // Node receiver rather than only reasoned about. Triggered by progress
+        // rather than by a clock: a timer can fire while the receiver is still
+        // preallocating, when there is nothing to pause and pause() is a no-op.
+        val pauseAtPercent = System.getenv("FLYSHARE_PAUSE_AT_PERCENT")?.toIntOrNull()
+        val pauseForMs = System.getenv("FLYSHARE_PAUSE_FOR_MS")?.toLongOrNull() ?: 3_000L
+        val sender = TransferSender(self, identity, trust)
+        var pausedOnce = false
+
         var lastPercent = -1
         var startedAt = 0L
 
-        val outcome = TransferSender(self, identity, trust).send(peer, files) { progress ->
+        val outcome = sender.send(peer, files) { progress ->
             when (progress.status) {
                 SendStatus.Sending -> {
                     if (startedAt == 0L) startedAt = System.currentTimeMillis()
+                    if (pauseAtPercent != null && !pausedOnce &&
+                        progress.fraction * 100 >= pauseAtPercent
+                    ) {
+                        pausedOnce = true
+                        if (!sender.canPause) {
+                            println("\n  the receiver does not support pausing")
+                        } else {
+                            println("\n  pausing at ${(progress.fraction * 100).toInt()}%")
+                            Thread {
+                                sender.pause()
+                                Thread.sleep(pauseForMs)
+                                println("  resuming after $pauseForMs ms")
+                                sender.resume()
+                            }.apply { isDaemon = true }.start()
+                        }
+                    }
                     val percent = (progress.fraction * 100).toInt()
                     if (percent != lastPercent) {
                         lastPercent = percent

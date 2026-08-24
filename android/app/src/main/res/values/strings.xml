@@ -50,6 +50,9 @@
     <string name="could_not_send">Could not send</string>
     <string name="declined">Declined</string>
     <string name="dismiss">Dismiss</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="status_paused">Paused</string>
     <string name="cancel">Cancel</string>
     <string name="progress_of">%1$s of %2$s</string>
 

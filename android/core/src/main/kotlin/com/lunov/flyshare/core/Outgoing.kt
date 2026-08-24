@@ -76,6 +76,13 @@ class OutgoingTransfers(
         sender?.cancel("cancelled on this device")
     }
 
+    /** True once the receiver has said it understands a pause — §9.5. */
+    val canPause: Boolean get() = sender?.canPause == true
+
+    fun pause() = sender?.pause() ?: Unit
+
+    fun resume() = sender?.resume() ?: Unit
+
     fun dismiss() {
         if (!busy) _state.value = OutgoingUi.None
     }

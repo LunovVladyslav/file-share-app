@@ -116,6 +116,20 @@ export class Sender extends EventEmitter {
     return session.finish();
   }
 
+  pause(transferId) {
+    const session = this.#sessions.get(transferId);
+    if (!session?.pause()) return false;
+    this.emit('transfer', session.snapshot());
+    return true;
+  }
+
+  resume(transferId) {
+    const session = this.#sessions.get(transferId);
+    if (!session?.resume()) return false;
+    this.emit('transfer', session.snapshot());
+    return true;
+  }
+
   cancel(transferId) {
     const session = this.#sessions.get(transferId);
     if (!session) return false;
@@ -129,6 +143,9 @@ export class Sender extends EventEmitter {
 }
 
 class SendSession {
+  #canPause = false;
+  #paused = false;
+  #waitingOnResume = [];
   #control = null;
   #token = null;
   #pool = [];
@@ -195,6 +212,7 @@ class SendSession {
       throw new Error(result.reason ?? 'declined');
     }
     this.#token = result.token;
+    this.#canPause = Boolean(result.canPause);
     this.startedAt = Date.now();
     this.#setStatus('sending');
     return this;
@@ -244,6 +262,10 @@ class SendSession {
     const socket = await this.#openDataConn();
     try {
       for (;;) {
+        if (this.#cancelled) break;
+        // Between chunks only, which is what §9.5 requires and what makes a
+        // pause free: nothing is half-delivered, so nothing is re-sent.
+        await this.#awaitResume();
         if (this.#cancelled) break;
         const item = queue.shift();
         if (!item) break;
@@ -356,8 +378,42 @@ class SendSession {
     return this.snapshot();
   }
 
+  /** True once the receiver has said it understands a pause — §9.5. */
+  get canPause() {
+    return Boolean(this.#canPause);
+  }
+
+  get paused() {
+    return Boolean(this.#paused);
+  }
+
+  pause() {
+    if (!this.#canPause || this.#paused || this.status !== 'sending') return false;
+    this.#paused = true;
+    try { this.#control?.write(encodeFrame({ t: 'pause' })); } catch { /* gone */ }
+    this.#setStatus('sending');
+    return true;
+  }
+
+  resume() {
+    if (!this.#paused) return false;
+    this.#paused = false;
+    try { this.#control?.write(encodeFrame({ t: 'resume' })); } catch { /* gone */ }
+    for (const wake of this.#waitingOnResume.splice(0)) wake();
+    this.#setStatus('sending');
+    return true;
+  }
+
+  /** Park until resumed. Polled rather than event-driven: a pause is rare. */
+  #awaitResume() {
+    if (!this.#paused || this.#cancelled) return Promise.resolve();
+    return new Promise((resolve) => this.#waitingOnResume.push(resolve));
+  }
+
   cancel(reason) {
     if (this.#cancelled || this.status === 'completed') return;
+    this.#paused = false;
+    for (const wake of this.#waitingOnResume.splice(0)) wake();
     this.#cancelled = true;
     try { this.#control?.write(encodeFrame({ t: 'cancel', reason })); } catch { /* gone */ }
     this.#setStatus('cancelled', reason);
@@ -406,6 +462,8 @@ class SendSession {
       direction: 'out',
       peer: { id: this.peer.id, name: this.peer.name, os: this.peer.os },
       status: this.status,
+      paused: this.paused,
+      canPause: this.canPause,
       error: this.error,
       totalSize: this.totalSize,
       received: this.sent,

@@ -119,7 +119,14 @@ class TransferReceiver(
         }
 
         active[transferId] = transfer
-        Frames.write(connection.output, frame("t" to "offer-result", "accept" to true, "token" to token))
+        Frames.write(connection.output, frame(
+            "t" to "offer-result",
+            "accept" to true,
+            "token" to token,
+            // Section 9.5: saying this is an undertaking to understand the
+            // pause and resume frames. A sender must not send them otherwise.
+            "canPause" to true,
+        ))
         // From acceptance, not from the offer: the wait for a person to decide
         // is not the transfer's time.
         transfer.startedAt = System.currentTimeMillis()
@@ -188,7 +195,7 @@ class TransferReceiver(
 
         try {
             while (true) {
-                val message = Frames.read(input)
+                val message = readTolerantOfPause(input, transfer) ?: return
                 when (message.type()) {
                     "chunk" -> receiveChunk(message, input, buffer, transfer)
                     "end" -> {
@@ -225,6 +232,26 @@ class TransferReceiver(
             connection.readTimeout(CLOSE_DRAIN_MS)
             val scratch = ByteArray(1024)
             while (connection.input.read(scratch) >= 0) { /* discard */ }
+        }
+    }
+
+
+    /**
+     * Read the next frame, waiting out a pause rather than calling it a stall.
+     *
+     * The idle timeout exists to notice a sender that has died. A sender that
+     * has paused looks identical from here, which is why §9.5 makes it say so
+     * on the control connection. A timeout can only land between frames — the
+     * sender is required to pause between chunks — so nothing is half-read.
+     */
+    private fun readTolerantOfPause(input: DataInputStream, transfer: Active): JsonObject? {
+        while (true) {
+            try {
+                return Frames.read(input)
+            } catch (e: java.net.SocketTimeoutException) {
+                if (transfer.finished.get()) return null
+                if (!transfer.paused.get()) throw e
+            }
         }
     }
 
@@ -265,12 +292,17 @@ class TransferReceiver(
     private fun watchForCancel(connection: SecureChannel, transfer: Active): Thread {
         val watcher = Thread({
             val reason = runCatching {
-                val message = Frames.read(connection.input)
-                if (message.type() == "cancel") {
-                    message.string("reason") ?: "the sender cancelled the transfer"
-                } else {
-                    "unexpected frame during the transfer: ${message.type()}"
+                var outcome: String? = null
+                while (outcome == null) {
+                    val message = Frames.read(connection.input)
+                    outcome = when (message.type()) {
+                        "pause" -> { transfer.paused.set(true); null }
+                        "resume" -> { transfer.paused.set(false); null }
+                        "cancel" -> message.string("reason") ?: "the sender cancelled the transfer"
+                        else -> "unexpected frame during the transfer: ${message.type()}"
+                    }
                 }
+                outcome
             }.getOrElse { "the sender disconnected" }
 
             if (!transfer.finished.get()) transfer.settle("control connection", reason)
@@ -290,6 +322,9 @@ class TransferReceiver(
         var sinks: List<DownloadSink> = emptyList()
         var watcher: Thread? = null
         var startedAt: Long = 0
+
+        /** Set by the control connection; read by every data connection. */
+        val paused = AtomicBoolean(false)
 
         companion object {
             val TRACE: Boolean = System.getenv("FLYSHARE_TRACE") != null

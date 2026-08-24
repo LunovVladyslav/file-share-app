@@ -68,16 +68,41 @@ const sender = new Sender();
 
 let previousStatus = null;
 
+// Pause in flight, so §9.5 is exercised against the real Kotlin receiver
+// rather than only reasoned about. Timed from the moment sending starts,
+// which is after the receiver has answered and canPause is known — a timer
+// started any earlier can fire while the receiver is still preallocating,
+// when there is nothing to pause and pause() is a no-op that hides the fact.
+const pauseAfterMs = Number(process.env.FLYSHARE_PAUSE_AFTER_MS) || 0;
+const pauseForMs = Number(process.env.FLYSHARE_PAUSE_FOR_MS) || 3000;
+let pausedOnce = false;
+
 const finished = new Promise((resolve) => {
   sender.on('transfer', (t) => {
     if (t.status !== previousStatus) {
       // Every transition, because when this stalls the last one names the step.
       process.stdout.write(`\r  [${t.status}]${t.error ? ' ' + t.error : ''}\n`);
       previousStatus = t.status;
+
+      // Hung off the status change rather than a percentage: over loopback a
+      // transfer can finish between two progress events, and a pause that
+      // never fired would look like a pause that worked.
+      if (t.status === 'sending' && pauseAfterMs && !pausedOnce) {
+        pausedOnce = true;
+        setTimeout(() => {
+          if (!sender.pause(t.id)) {
+            console.log('  the receiver does not support pausing');
+            return;
+          }
+          console.log(`  paused; resuming in ${pauseForMs} ms`);
+          setTimeout(() => sender.resume(t.id), pauseForMs);
+        }, pauseAfterMs);
+      }
     }
     if (t.status === 'sending' && t.totalSize) {
-      const percent = ((t.received / t.totalSize) * 100).toFixed(1);
-      process.stdout.write(`\r  ${percent}%  ${mbps(t.speed)}   `);
+      const percent = (t.received / t.totalSize) * 100;
+      process.stdout.write(`\r  ${percent.toFixed(1)}%  ${mbps(t.speed)}   `);
+
     }
     // 'completed' is the sender's success state; 'done' is a frame, not a status.
     if (t.status === 'completed') { resolve({ ok: true, transfer: t }); }

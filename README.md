@@ -302,7 +302,7 @@ Pair again.
 
 - Symlinks and special files are skipped — they do not survive a Windows ↔ macOS round trip predictably.
 - Permissions and timestamps are not carried over.
-- An interrupted transfer cannot be resumed; it starts again.
+- A transfer can be paused and continued while both apps stay open; an interrupted one — app killed, network gone — cannot be resumed and starts again.
 - Protocol v2 is deliberately incompatible with v1, so an old unencrypted client gets a clear refusal rather than a silent downgrade.
 - The interface needs a current browser (it uses `light-dark()` and `color-mix()`).
 - On Android, a transfer runs while the app is open or in the background, but not after the system stops the process; and Android refuses to hand out the storage root or `Download` itself as a destination, so choosing a folder means picking one inside them.

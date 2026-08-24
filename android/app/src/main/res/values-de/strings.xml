@@ -35,6 +35,9 @@
     <string name="could_not_send">Senden nicht möglich</string>
     <string name="declined">Abgelehnt</string>
     <string name="dismiss">Ausblenden</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Fortsetzen</string>
+    <string name="status_paused">Pausiert</string>
     <string name="cancel">Abbrechen</string>
     <string name="progress_of">%1$s von %2$s</string>
 

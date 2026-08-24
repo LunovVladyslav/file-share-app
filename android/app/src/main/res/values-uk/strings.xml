@@ -35,6 +35,9 @@
     <string name="could_not_send">Не вдалося надіслати</string>
     <string name="declined">Відхилено</string>
     <string name="dismiss">Сховати</string>
+    <string name="pause">Пауза</string>
+    <string name="resume">Продовжити</string>
+    <string name="status_paused">Пауза</string>
     <string name="cancel">Скасувати</string>
     <string name="progress_of">%1$s з %2$s</string>
 

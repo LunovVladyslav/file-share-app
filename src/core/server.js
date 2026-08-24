@@ -270,10 +270,15 @@ class IncomingTransfer {
     this.#listenForControl(leftover);
   }
 
-  /** Listen for follow-up control frames from the sender (currently: cancel). */
+  /** Listen for follow-up control frames from the sender: cancel, pause, resume. */
   #listenForControl(leftover) {
     readFrames(this.socket, (frame) => {
       if (frame.t === 'cancel') this.abort(frame.reason ?? 'cancelled by sender');
+      else if (frame.t === 'pause' || frame.t === 'resume') {
+        // Without this the bar simply stops and nothing explains why.
+        this.paused = frame.t === 'pause';
+        this.server.emit('transfer', this.snapshot());
+      }
     }, leftover);
   }
 
@@ -298,7 +303,10 @@ class IncomingTransfer {
 
     this.status = 'receiving';
     this.startedAt = Date.now();
-    this.#send({ t: 'offer-result', accept: true, token: this.token });
+    // §9.5: saying this undertakes to understand pause and resume. Our data
+    // connections carry no idle timeout, so there is nothing to suspend — only
+    // the interface has to say what is happening.
+    this.#send({ t: 'offer-result', accept: true, token: this.token, canPause: true });
     this.server.notifyChange(this);
     // A manifest of nothing but empty files is already finished.
     if (this.totalSize === 0) this.#maybeComplete();
@@ -419,6 +427,7 @@ class IncomingTransfer {
       direction: 'in',
       peer: this.peer,
       status: this.status,
+      paused: Boolean(this.paused),
       error: this.error,
       totalSize: this.totalSize,
       received: this.received,

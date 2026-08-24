@@ -329,8 +329,13 @@ The receiver asks a person, unless it is configured to auto-accept for
 already-paired devices. Nothing may be written to storage before this answer.
 
 ```json
-{ "t": "offer-result", "accept": true, "token": "…32 hex chars…" }
+{ "t": "offer-result", "accept": true, "token": "…32 hex chars…", "canPause": true }
 ```
+
+`canPause` is optional and defaults to false. A receiver that sets it undertakes
+to understand the `pause` and `resume` frames of §9.5; a sender MUST NOT send
+them otherwise, because a receiver that does not know them will treat one as an
+unexpected frame and fail the transfer.
 
 or
 
@@ -383,8 +388,31 @@ When every declared byte has arrived and been flushed, the receiver sends
 | `{"t":"cancel","reason"}` | sender → receiver | Abandon the transfer. |
 | `{"t":"error","reason"}` | receiver → sender | Transfer failed; stop sending. |
 
-A dropped control connection means the transfer failed. There is no resume: an
-interrupted transfer starts again.
+A dropped control connection means the transfer failed. There is no resume
+across a lost connection: an interrupted transfer starts again.
+
+### 9.5 Pause
+
+A sender that has been told `canPause` MAY stop sending and continue later,
+holding every connection open meanwhile. Both frames go on the **control**
+connection:
+
+```json
+{ "t": "pause" }
+{ "t": "resume" }
+```
+
+A sender MUST only pause **between chunks**, never inside one. That is what
+makes resuming free: no chunk is half-delivered, so nothing is re-sent and no
+byte is counted twice. A receiver that has been told `pause` MUST stop applying
+its idle timeout to that transfer's data connections until `resume` arrives or
+the connection drops.
+
+This is a pause, not a resume-from-disk. It survives a person putting the phone
+down; it does not survive the app being killed or the network going away.
+Making it survive those would mean the receiver persisting which byte ranges it
+already holds, and the offer carrying a token to claim them — a larger change,
+and a different protocol version.
 
 ## 10. Receiver obligations for paths
 
@@ -417,6 +445,7 @@ A new implementation is compatible when it can:
 - [ ] Send and receive a multi-file, multi-stream transfer with byte-identical results.
 - [ ] Contain a hostile `rel` path.
 - [ ] Reject a data connection bearing the wrong token.
+- [ ] Pause and resume a transfer in flight, if it advertises `canPause`.
 
 The Node test suite in `test/` exercises every one of these and is the practical
 reference for expected behaviour.

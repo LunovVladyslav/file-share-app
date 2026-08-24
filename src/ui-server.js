@@ -169,6 +169,18 @@ export class UiServer {
         return sendJson(res, ok ? 200 : 404, { ok });
       }
 
+      case 'POST /api/pause': {
+        const body = await readJson(req);
+        const ok = this.sender.pause(body.transferId);
+        return sendJson(res, ok ? 200 : 404, { ok });
+      }
+
+      case 'POST /api/resume': {
+        const body = await readJson(req);
+        const ok = this.sender.resume(body.transferId);
+        return sendJson(res, ok ? 200 : 404, { ok });
+      }
+
       case 'POST /api/cancel': {
         const body = await readJson(req);
         const ok = this.server.cancel(body.transferId) || this.sender.cancel(body.transferId);

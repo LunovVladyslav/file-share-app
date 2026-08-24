@@ -405,7 +405,9 @@ function titleFor(transfer) {
 
 function updateTransfer(node, transfer) {
   node.title.textContent = titleFor(transfer);
-  node.status.textContent = t.t(`status.${transfer.status}`);
+  node.status.textContent = transfer.paused
+    ? t.t('status.paused')
+    : t.t(`status.${transfer.status}`);
   node.status.className = `transfer__status ${TONE[transfer.status] ?? ''}`;
   node.root.classList.toggle('is-pending', transfer.status === 'pending');
   node.root.classList.toggle('is-failed', transfer.status === 'failed');
@@ -486,8 +488,12 @@ function slowLinkHint(transfer, samples) {
 }
 
 function updateActions(node, transfer) {
+  // A sender that can pause gets a second button, and which one it is depends
+  // on the current state — so the paused flag is part of the identity of this
+  // set of controls, not just of their labels.
+  const canPause = transfer.direction === 'out' && transfer.canPause;
   const wanted = transfer.status === 'pending' ? 'decide'
-    : ACTIVE.has(transfer.status) ? 'cancel'
+    : ACTIVE.has(transfer.status) ? (canPause ? `cancel:${transfer.paused ? 'resume' : 'pause'}` : 'cancel')
       : transfer.status === 'completed' && transfer.direction === 'in' ? 'reveal' : 'none';
 
   if (node.actionsKind === wanted) return;
@@ -501,7 +507,14 @@ function updateActions(node, transfer) {
       button(t.t('action.decline'), 'button button--quiet',
         () => api('/api/respond', { transferId: transfer.id, accept: false })),
     );
-  } else if (wanted === 'cancel') {
+  } else if (wanted.startsWith('cancel')) {
+    if (wanted.endsWith('resume')) {
+      node.actions.append(button(t.t('action.resume'), 'button button--quiet',
+        () => api('/api/resume', { transferId: transfer.id })));
+    } else if (wanted.endsWith('pause')) {
+      node.actions.append(button(t.t('action.pause'), 'button button--quiet',
+        () => api('/api/pause', { transferId: transfer.id })));
+    }
     node.actions.append(button(t.t('action.cancel'), 'button button--quiet',
       () => api('/api/cancel', { transferId: transfer.id })));
   } else if (wanted === 'reveal') {
