@@ -115,4 +115,5 @@
     <string name="devices_section">SPAROWANE URZĄDZENIA</string>
     <!-- The unit is translated; the suffix has to be too. -->
     <string name="per_second">%1$s/s</string>
+    <string name="online_now">teraz w sieci</string>
 </resources>

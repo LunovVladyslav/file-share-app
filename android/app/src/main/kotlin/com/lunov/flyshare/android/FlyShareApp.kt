@@ -6,6 +6,7 @@ import com.lunov.flyshare.core.DiscoveryService
 import com.lunov.flyshare.core.History
 import com.lunov.flyshare.core.HistoryEntry
 import com.lunov.flyshare.core.Identity
+import com.lunov.flyshare.core.localInterfaces
 import com.lunov.flyshare.core.Outcome
 import com.lunov.flyshare.core.Presence
 import com.lunov.flyshare.core.SendProgress
@@ -88,6 +89,18 @@ class FlyShareEngine(context: Context) {
         scope = scope,
         downloads = folder::store,
     )
+
+    /**
+     * The address other devices reach this one at.
+     *
+     * This replaced the device id under the app name. The id is a routing
+     * label — the specification says so — and it is not what anybody compares:
+     * pairing compares six digits, and the device list shows names. It gave a
+     * person nothing to do. The address does: it is the first thing to check
+     * when two devices cannot see each other, and it is what the desktop has
+     * shown about itself all along.
+     */
+    val address: String get() = localInterfaces().firstOrNull()?.address ?: ""
 
     private val _busy = MutableStateFlow(false)
 

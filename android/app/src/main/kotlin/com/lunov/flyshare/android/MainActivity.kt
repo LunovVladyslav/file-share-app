@@ -168,8 +168,8 @@ private fun App(model: FlyShareViewModel, shared: MutableStateFlow<List<Uri>>) {
             Box(Modifier.padding(padding)) {
                 when (screen) {
                     Screen.Home -> HomeScreen(
-                        self = model.self,
                         selfName = myName,
+                        selfAddress = model.address,
                         peers = peers,
                         isPaired = { id -> paired.any { it.id == id } },
                         waitingToSend = waiting,
@@ -188,6 +188,7 @@ private fun App(model: FlyShareViewModel, shared: MutableStateFlow<List<Uri>>) {
                         isCustomName = chosenName != null,
                         destination = destination,
                         paired = paired,
+                        isReachable = model::isReachable,
                         theme = model.theme.value,
                         language = model.language.value,
                         onBack = { screen = Screen.Home },

@@ -74,6 +74,7 @@ fun SettingRow(
     glyph: Glyph,
     label: String,
     value: String? = null,
+    leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
@@ -88,7 +89,10 @@ fun SettingRow(
     ) {
         Icon(glyph, palette.ink3, Modifier.padding(end = 14.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, style = Type.body, color = palette.ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                leading?.let { Box(Modifier.padding(end = 8.dp)) { it() } }
+                Text(label, style = Type.body, color = palette.ink)
+            }
             value?.let {
                 Text(
                     it,

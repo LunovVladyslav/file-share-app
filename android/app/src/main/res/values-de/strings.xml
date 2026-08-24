@@ -111,4 +111,5 @@
     <string name="devices_section">GEKOPPELTE GERÄTE</string>
     <!-- The unit is translated; the suffix has to be too. -->
     <string name="per_second">%1$s/s</string>
+    <string name="online_now">jetzt im Netzwerk</string>
 </resources>

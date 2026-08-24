@@ -114,4 +114,5 @@
     <string name="devices_section">СПАРЕНІ ПРИСТРОЇ</string>
     <!-- The unit is translated; the suffix has to be too. -->
     <string name="per_second">%1$s/с</string>
+    <string name="online_now">зараз у мережі</string>
 </resources>

@@ -44,6 +44,12 @@ class FlyShareViewModel(context: Context) : ViewModel() {
     /** What the device is called right now, default or chosen. */
     val effectiveName: StateFlow<String> = engine.name
 
+    /** Where other devices reach this one — see FlyShareEngine.address. */
+    val address: String get() = engine.address
+
+    /** Paired devices that are also on the network right now. */
+    fun isReachable(deviceId: String): Boolean = peers.value.any { it.id == deviceId }
+
     /** Null means the built-in default; the screen names it in its own language. */
     val destination: StateFlow<String?> = _destination.asStateFlow()
     val waitingToSend: StateFlow<Int> = _waitingToSend.asStateFlow()

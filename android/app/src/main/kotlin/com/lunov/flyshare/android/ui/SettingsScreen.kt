@@ -48,6 +48,7 @@ fun SettingsScreen(
     isCustomName: Boolean,
     destination: String,
     paired: List<PairedPeer>,
+    isReachable: (String) -> Boolean,
     theme: ThemeChoice,
     language: Language,
     onBack: () -> Unit,
@@ -93,11 +94,21 @@ fun SettingsScreen(
                 modifier = Modifier.padding(vertical = 12.dp),
             )
         } else {
+            // Which of them is actually here matters more than any of the
+            // rest of this. Three entries called "MSI" is what a laptop that
+            // has been reinstalled a few times leaves behind, and without
+            // this there is no way to tell which one to keep.
             paired.forEach { peer ->
+                val here = isReachable(peer.id)
                 SettingRow(
                     glyph = Glyph.Device,
                     label = peer.name,
-                    value = "${peer.os} · " + stringResource(R.string.paired_on, formatDate(peer.pairedAt)),
+                    value = if (here) {
+                        stringResource(R.string.online_now)
+                    } else {
+                        "${peer.os} · " + stringResource(R.string.paired_on, formatDate(peer.pairedAt))
+                    },
+                    leading = { if (here) Dot(palette.ok) },
                     trailing = { QuietButton(stringResource(R.string.forget)) { forgetting = peer } },
                 )
             }

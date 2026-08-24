@@ -26,7 +26,6 @@ import com.lunov.flyshare.android.Type
 import com.lunov.flyshare.core.IncomingUi
 import com.lunov.flyshare.core.OutgoingUi
 import com.lunov.flyshare.core.Peer
-import com.lunov.flyshare.core.SelfDescription
 import com.lunov.flyshare.core.SendStatus
 import com.lunov.flyshare.core.TransferStatus
 
@@ -39,8 +38,8 @@ import com.lunov.flyshare.core.TransferStatus
  */
 @Composable
 fun HomeScreen(
-    self: SelfDescription,
     selfName: String,
+    selfAddress: String,
     peers: List<Peer>,
     isPaired: (String) -> Boolean,
     waitingToSend: Int,
@@ -63,7 +62,7 @@ fun HomeScreen(
                     color = palette.ink,
                 )
                 Text(
-                    "$selfName · ${self.id}",
+                    listOf(selfName, selfAddress).filter { it.isNotBlank() }.joinToString(" · "),
                     style = Type.meta,
                     color = palette.ink3,
                     maxLines = 1,
