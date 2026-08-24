@@ -91,6 +91,12 @@ The coloured strip on an active transfer is a live throughput trace. Bar height
 is the rate, and the colour maps to absolute speed on a log scale — so a Wi-Fi
 dip and its recovery are visible instead of averaged away.
 
+The list outlives the app. The last fifty transfers are kept on disk with who
+they were with, how long they took and where they landed, so closing the window
+no longer loses the record. Click any of them to open it file by file: what has
+arrived, what is moving right now, what is still queued, and a way to point the
+file manager straight at one file out of four hundred.
+
 ## Why it is fast
 
 **Parallel TCP streams.** A single connection on Wi-Fi is limited by its
@@ -215,8 +221,10 @@ sender                                 receiver
 | Accept without asking | off | applies only to devices you already paired |
 
 State lives in `~/.flyshare/`: `config.json`, `identity.json` (private key, mode
-600) and `peers.json` (pinned keys). `FLYSHARE_HOME` moves all of it elsewhere,
-which is what makes portable installs and side-by-side instances possible.
+600), `peers.json` (pinned keys) and `history.json` (the last fifty transfers —
+summaries only, never a list of file names). `FLYSHARE_HOME` moves all of it
+elsewhere, which is what makes portable installs and side-by-side instances
+possible.
 
 Ports can be changed with `FLYSHARE_DISCOVERY_PORT`, `FLYSHARE_TRANSFER_PORT`
 and `FLYSHARE_UI_PORT`.

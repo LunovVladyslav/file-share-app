@@ -48,6 +48,7 @@
     <div class="eyebrow">
       <h2 id="transfers-heading" class="eyebrow__label" data-i18n="transfers.heading">Transfers</h2>
       <span class="eyebrow__rule" aria-hidden="true"></span>
+      <button id="clear-history" class="link-button" hidden data-i18n="transfers.clear"></button>
       <button id="open-folder" class="link-button" data-i18n="transfers.openFolder"></button>
     </div>
     <div id="transfers" class="transfers"></div>
@@ -56,9 +57,9 @@
 
 </main>
 
-<aside id="settings" class="settings" hidden>
-  <div class="settings__head">
-    <h2 class="settings__title" data-i18n="settings.title">Settings</h2>
+<aside id="settings" class="drawer" hidden>
+  <div class="drawer__head">
+    <h2 class="drawer__title" data-i18n="settings.title">Settings</h2>
     <button id="settings-close" class="icon-button" data-i18n="settings.close"></button>
   </div>
 
@@ -123,6 +124,27 @@
   </label>
 
   <p id="settings-status" class="settings__status" role="status"></p>
+</aside>
+
+<aside id="detail" class="drawer detail" hidden aria-labelledby="detail-title">
+  <div class="drawer__head">
+    <h2 id="detail-title" class="drawer__title"></h2>
+    <button id="detail-close" class="icon-button" data-i18n="settings.close"></button>
+  </div>
+
+  <div class="detail__summary">
+    <p id="detail-line" class="detail__line"></p>
+    <p id="detail-timing" class="detail__timing"></p>
+    <p id="detail-error" class="detail__error" hidden></p>
+  </div>
+
+  <div id="detail-actions" class="detail__actions"></div>
+
+  <div class="field">
+    <span class="field__label" data-i18n="detail.files"></span>
+    <p id="detail-note" class="field__hint" hidden></p>
+    <ol id="detail-files" class="files"></ol>
+  </div>
 </aside>
 
 <div id="pair-dialog" class="pair" hidden role="dialog" aria-modal="true" aria-labelledby="pair-peer">

@@ -9,6 +9,7 @@ import { peerPublicKey } from './trust.js';
 import { initiatePairing } from './pairing.js';
 import { newEphemeralKeyPair, deriveSessionKey, secureClient, describeSecurity } from './secure.js';
 import { noteContact } from './presence.js';
+import { isFinished } from './history.js';
 import { SpeedMeter } from '../util/speed.js';
 
 /**
@@ -134,6 +135,14 @@ export class Sender extends EventEmitter {
     const session = this.#sessions.get(transferId);
     if (!session) return false;
     session.cancel('cancelled by user');
+    return true;
+  }
+
+  /** Drop a finished session from the live list; history keeps the record. */
+  forget(transferId) {
+    const session = this.#sessions.get(transferId);
+    if (!session || !isFinished(session.status)) return false;
+    this.#sessions.delete(transferId);
     return true;
   }
 
@@ -276,7 +285,7 @@ class SendSession {
           end: item.offset + item.length - 1,
           highWaterMark: this.config.readBufferSize,
         });
-        await this.#pump(socket, stream, item.length);
+        await this.#pump(socket, stream, item.length, item.fileIndex);
       }
       socket.write(encodeFrame({ t: 'end' }));
       await new Promise((resolve) => socket.end(resolve));
@@ -287,13 +296,18 @@ class SendSession {
   }
 
   /** Copy `expected` bytes from a readable onto the socket, respecting backpressure. */
-  async #pump(socket, readable, expected) {
+  async #pump(socket, readable, expected, fileIndex) {
+    const file = this.files[fileIndex];
     let written = 0;
     for await (const buf of readable) {
       if (this.#cancelled) throw new Error('cancelled');
       written += buf.length;
       if (written > expected) throw new Error('source produced more bytes than declared');
       this.sent += buf.length;
+      // Per file as well as in total, because a transfer of four hundred
+      // files has four hundred answers to "how far along is this" and one of
+      // them is not enough to tell which one is stuck.
+      if (file) file.sent = (file.sent ?? 0) + buf.length;
       this.speed.add(buf.length);
       if (!socket.write(buf)) await once(socket, 'drain');
     }
@@ -309,7 +323,7 @@ class SendSession {
     const socket = await this.#acquireConn();
     try {
       socket.write(encodeFrame({ t: 'chunk', ...header }));
-      await this.#pump(socket, readable, header.length);
+      await this.#pump(socket, readable, header.length, header.fileIndex);
       this.#releaseConn(socket);
     } catch (err) {
       // A desynced connection can never be reused: the receiver is now
@@ -468,7 +482,9 @@ class SendSession {
       totalSize: this.totalSize,
       received: this.sent,
       fileCount: this.files.length,
-      files: this.files.map((f) => ({ rel: f.rel, size: f.size })),
+      // `received` on both sides of the wire: the interface draws one bar per
+      // file and should not have to know which end of the transfer it is on.
+      files: this.files.map((f) => ({ rel: f.rel, size: f.size, received: f.sent ?? 0 })),
       speed: this.speed.bytesPerSecond,
       security: this.security ?? null,
       streams: this.streams,

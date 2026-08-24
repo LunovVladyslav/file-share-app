@@ -9,6 +9,7 @@ import { encodeFrame, readFrames, readFirstFrame, MAX_FRAME } from './protocol.j
 import { safeJoin, uniquePath, sanitizeSegment } from './manifest.js';
 import { peerPublicKey, refreshPeerName } from './trust.js';
 import { noteContact } from './presence.js';
+import { isFinished } from './history.js';
 import { newEphemeralKeyPair, deriveSessionKey, secureServer, describeSecurity } from './secure.js';
 import { IncomingPairing } from './pairing.js';
 import { SpeedMeter } from '../util/speed.js';
@@ -224,8 +225,12 @@ export class TransferServer extends EventEmitter {
     return true;
   }
 
+  /** Drop a finished transfer from the live list; history keeps the record. */
   forget(transferId) {
+    const transfer = this.#transfers.get(transferId);
+    if (!transfer || !isFinished(transfer.status)) return false;
     this.#transfers.delete(transferId);
+    return true;
   }
 
   notifyChange(transfer) {

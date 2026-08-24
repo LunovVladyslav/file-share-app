@@ -118,6 +118,15 @@ const SHOTS = [
             document.getElementById('settings-toggle').click();`,
   },
   {
+    // Wants a real transfer on screen — ideally one still running, so the
+    // file list has something in every state. Run it while sending a folder.
+    file: 'transfer-detail.png',
+    size: [1180, 900],
+    setup: `settings({ language: 'en', theme: 'dark', transferView: 'list' });
+            await pause(500);
+            document.querySelectorAll('.transfer__title')[0]?.click();`,
+  },
+  {
     // Captured against a real handshake left waiting on the other machine —
     // the code in this picture was actually derived, not typed in.
     file: 'pairing.png',

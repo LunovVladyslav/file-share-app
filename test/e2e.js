@@ -108,6 +108,7 @@ async function main() {
   );
   const result = completion.payload;
   if (result.status !== 'completed') throw new Error(`transfer ${result.status}: ${result.error}`);
+  const outgoing = sender.transfers.find((x) => x.id === result.id);
 
   const seconds = (Date.now() - started) / 1000;
   const mib = result.totalSize / 1024 / 1024;
@@ -140,6 +141,21 @@ async function main() {
 
   const bigStat = await fsp.stat(path.join(destRoot, 'big.bin'));
   check(bigStat.size === 40 * 1024 * 1024, 'multi-chunk file has exact size', `${bigStat.size}`);
+
+  // Per-file accounting, which is what the detail panel draws one bar per file
+  // from. The totals agreeing proves nothing here: a sender that credited
+  // every byte to the first file would still add up to the right number, and
+  // would draw one full bar and four hundred empty ones.
+  for (const [side, files] of [['sender', outgoing?.files ?? []], ['receiver', result.files ?? []]]) {
+    check(files.length === sourceHashes.size, `the ${side} accounts for every file`,
+      `${files.length} of ${sourceHashes.size}`);
+    const short = files.filter((f) => (f.received ?? 0) !== f.size);
+    check(short.length === 0, `every file is credited its own bytes on the ${side}`,
+      short.slice(0, 3).map((f) => `${f.rel} ${f.received}/${f.size}`).join(', '));
+    const sum = files.reduce((n, f) => n + (f.received ?? 0), 0);
+    check(sum === result.totalSize, `per-file bytes sum to the total on the ${side}`,
+      `${sum} vs ${result.totalSize}`);
+  }
 
   receiver.stop();
   await fsp.rm(ROOT, { recursive: true, force: true }).catch(() => {});

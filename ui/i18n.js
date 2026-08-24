@@ -34,6 +34,7 @@ const STRINGS = {
 
     'transfers.heading': 'Transfers',
     'transfers.openFolder': 'Open downloads folder',
+    'transfers.clear': 'Clear the list',
     'transfers.empty': 'Transfers will show up here — both the ones you send and the ones you receive.',
 
     'status.pending': 'Request',
@@ -54,6 +55,7 @@ const STRINGS = {
     'action.pause': 'Pause',
     'action.resume': 'Resume',
     'action.reveal': 'Show in folder',
+    'action.revealFile': 'Show',
 
     'transfer.to': 'to',
     'transfer.from': 'from',
@@ -63,6 +65,14 @@ const STRINGS = {
     'transfer.elapsed': '{time} so far',
     'transfer.average': 'avg {rate}',
     'transfer.files': { one: '{n} file', other: '{n} files' },
+
+    'detail.files': 'Files',
+    'detail.waiting': 'Waiting',
+    'detail.moving': 'Transferring',
+    'detail.done': 'Done',
+    'detail.failed': 'Incomplete',
+    'detail.more': 'Showing the first {shown} of {total}.',
+    'detail.noFileList': 'The list of files is not kept once a transfer is over. The folder they landed in is the record.',
 
     'units.bytes': ['B', 'KB', 'MB', 'GB', 'TB'],
     'units.perSecond': '{value}/s',
@@ -135,6 +145,7 @@ const STRINGS = {
 
     'transfers.heading': 'Übertragungen',
     'transfers.openFolder': 'Download-Ordner öffnen',
+    'transfers.clear': 'Liste leeren',
     'transfers.empty': 'Hier erscheinen Übertragungen — gesendete wie empfangene.',
 
     'status.pending': 'Anfrage',
@@ -155,6 +166,7 @@ const STRINGS = {
     'action.pause': 'Pause',
     'action.resume': 'Fortsetzen',
     'action.reveal': 'Im Ordner zeigen',
+    'action.revealFile': 'Zeigen',
 
     'transfer.to': 'an',
     'transfer.from': 'von',
@@ -164,6 +176,14 @@ const STRINGS = {
     'transfer.elapsed': '{time} bisher',
     'transfer.average': 'Ø {rate}',
     'transfer.files': { one: '{n} Datei', other: '{n} Dateien' },
+
+    'detail.files': 'Dateien',
+    'detail.waiting': 'Wartet',
+    'detail.moving': 'Wird übertragen',
+    'detail.done': 'Fertig',
+    'detail.failed': 'Unvollständig',
+    'detail.more': 'Die ersten {shown} von {total} werden angezeigt.',
+    'detail.noFileList': 'Die Dateiliste wird nach dem Ende einer Übertragung nicht aufbewahrt. Maßgeblich ist der Ordner, in dem die Dateien gelandet sind.',
 
     'units.bytes': ['B', 'KB', 'MB', 'GB', 'TB'],
     'units.perSecond': '{value}/s',
@@ -236,6 +256,7 @@ const STRINGS = {
 
     'transfers.heading': 'Передачі',
     'transfers.openFolder': 'Відкрити папку завантажень',
+    'transfers.clear': 'Очистити список',
     'transfers.empty': 'Тут з’являться передачі — і ті, що надсилаєте ви, і вхідні.',
 
     'status.pending': 'Запит',
@@ -256,6 +277,7 @@ const STRINGS = {
     'action.pause': 'Пауза',
     'action.resume': 'Продовжити',
     'action.reveal': 'Показати в папці',
+    'action.revealFile': 'Показати',
 
     'transfer.to': 'до',
     'transfer.from': 'від',
@@ -265,6 +287,14 @@ const STRINGS = {
     'transfer.elapsed': 'триває {time}',
     'transfer.average': 'середньо {rate}',
     'transfer.files': { one: '{n} файл', few: '{n} файли', many: '{n} файлів' },
+
+    'detail.files': 'Файли',
+    'detail.waiting': 'Чекає',
+    'detail.moving': 'Передається',
+    'detail.done': 'Готово',
+    'detail.failed': 'Неповний',
+    'detail.more': 'Показано перші {shown} з {total}.',
+    'detail.noFileList': 'Список файлів не зберігається після завершення передачі. Записом є папка, у яку вони потрапили.',
 
     'units.bytes': ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'],
     'units.perSecond': '{value}/с',
@@ -337,6 +367,7 @@ const STRINGS = {
 
     'transfers.heading': 'Transfery',
     'transfers.openFolder': 'Otwórz folder pobierania',
+    'transfers.clear': 'Wyczyść listę',
     'transfers.empty': 'Tutaj pojawią się transfery — wysyłane i odbierane.',
 
     'status.pending': 'Prośba',
@@ -357,6 +388,7 @@ const STRINGS = {
     'action.pause': 'Pauza',
     'action.resume': 'Wznów',
     'action.reveal': 'Pokaż w folderze',
+    'action.revealFile': 'Pokaż',
 
     'transfer.to': 'do',
     'transfer.from': 'od',
@@ -366,6 +398,14 @@ const STRINGS = {
     'transfer.elapsed': 'trwa {time}',
     'transfer.average': 'średnio {rate}',
     'transfer.files': { one: '{n} plik', few: '{n} pliki', many: '{n} plików' },
+
+    'detail.files': 'Pliki',
+    'detail.waiting': 'Czeka',
+    'detail.moving': 'Przesyłanie',
+    'detail.done': 'Gotowe',
+    'detail.failed': 'Niekompletny',
+    'detail.more': 'Wyświetlono pierwsze {shown} z {total}.',
+    'detail.noFileList': 'Lista plików nie jest przechowywana po zakończeniu transferu. Zapisem jest folder, do którego trafiły.',
 
     'units.bytes': ['B', 'KB', 'MB', 'GB', 'TB'],
     'units.perSecond': '{value}/s',

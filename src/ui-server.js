@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { UI_PORT, loadConfig, saveConfig, platformLabel } from './core/config.js';
 import { localInterfaces } from './core/discovery.js';
 import { isPaired, pairedPeers, forgetPeer } from './core/trust.js';
+import { entries as historyEntries, record as recordTransfer, clear as clearHistory, isFinished } from './core/history.js';
 import { pickFiles, pickFolder } from './util/picker.js';
 import { readUiFile } from './util/assets.js';
 
@@ -38,10 +39,21 @@ export class UiServer {
 
     discovery.on('change', () => this.push());
     server.on('offer', () => this.push());
-    server.on('transfer', () => this.push());
+    server.on('transfer', (transfer) => this.#onTransfer(transfer));
     server.on('pairing', () => this.push());
-    sender.on('transfer', () => this.push());
+    sender.on('transfer', (transfer) => this.#onTransfer(transfer));
     sender.on('pairing', () => this.push());
+  }
+
+  /**
+   * Every transfer event passes through here, and the ones that are over get
+   * written down. Recording at the moment a transfer settles rather than on
+   * the way out means an app that is killed, crashes, or loses power still
+   * remembers what it did.
+   */
+  #onTransfer(transfer) {
+    recordTransfer(transfer);
+    this.push();
   }
 
   async start(port = UI_PORT) {
@@ -181,6 +193,22 @@ export class UiServer {
         return sendJson(res, ok ? 200 : 404, { ok });
       }
 
+      case 'POST /api/history/clear': {
+        // The stored record and the finished entries still in memory are one
+        // list on screen, so "clear" has to mean both — otherwise half of it
+        // would come straight back on the next frame.
+        clearHistory();
+        for (const side of [this.server, this.sender]) {
+          for (const transfer of side.transfers) {
+            // Not the one still moving bytes: dropping that would leave it
+            // running with nothing on screen to cancel it with.
+            if (isFinished(transfer.status)) side.forget(transfer.id);
+          }
+        }
+        this.push();
+        return sendJson(res, 200, { ok: true });
+      }
+
       case 'POST /api/cancel': {
         const body = await readJson(req);
         const ok = this.server.cancel(body.transferId) || this.sender.cancel(body.transferId);
@@ -232,7 +260,14 @@ export class UiServer {
 
   state() {
     const config = loadConfig();
-    const transfers = [...this.server.transfers, ...this.sender.transfers]
+    // One list, two sources. A transfer this run knows about is shown live —
+    // it still has per-file progress and a throughput trace behind it — and
+    // the stored copy of the same transfer is skipped, so nothing appears
+    // twice. Everything older comes from history, which is what makes the
+    // list survive a restart at all.
+    const live = [...this.server.transfers, ...this.sender.transfers];
+    const known = new Set(live.map((t) => t.id));
+    const transfers = [...live, ...historyEntries().filter((e) => !known.has(e.id))]
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50);
     return {

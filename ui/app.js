@@ -22,6 +22,16 @@ const dom = {
   transfers: el('transfers'),
   transfersEmpty: el('transfers-empty'),
   openFolder: el('open-folder'),
+  clearHistory: el('clear-history'),
+  detail: el('detail'),
+  detailTitle: el('detail-title'),
+  detailLine: el('detail-line'),
+  detailTiming: el('detail-timing'),
+  detailError: el('detail-error'),
+  detailActions: el('detail-actions'),
+  detailNote: el('detail-note'),
+  detailFiles: el('detail-files'),
+  detailClose: el('detail-close'),
   settings: el('settings'),
   scrim: el('scrim'),
   settingsToggle: el('settings-toggle'),
@@ -51,8 +61,15 @@ let settingsDirty = false;
 let language = null;
 let t = createTranslator(resolveLanguage('auto'));
 
+// Which transfer the detail drawer is showing, and which one its file rows
+// were built for — the rows are reused between frames, so they are only torn
+// down when the drawer moves to a different transfer.
+let detailId = null;
+let detailFilesFor = null;
+
 const peerNodes = new Map();
 const transferNodes = new Map();
+const detailFileNodes = new Map();
 const traces = new Map(); // transferId -> rolling throughput samples
 const dismissedPairings = new Set();
 const announcedPairings = new Set();
@@ -136,8 +153,22 @@ function duration(seconds) {
   return t.t('time.hours', { h: Math.floor(minutes / 60), m: minutes % 60 });
 }
 
+/**
+ * When something happened, in the interface's language rather than the
+ * browser's — the two are only the same by accident, and a Polish window
+ * printing Ukrainian month names is how you find that out.
+ */
+function when(millis) {
+  if (!millis) return '';
+  return new Intl.DateTimeFormat(language ?? undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(millis));
+}
+
 const TONE = { completed: 'is-ok', failed: 'is-err' };
 const ACTIVE = new Set(['connecting', 'waiting', 'sending', 'receiving', 'finalizing']);
+const BROKEN = new Set(['failed', 'declined', 'cancelled']);
 
 // --- preferences ---------------------------------------------------------
 
@@ -167,8 +198,10 @@ function translateStatic() {
     node.textContent = t.t(node.dataset.i18n);
   }
   // Rebuilt on every language change so labels inside them follow suit.
-  for (const node of transferNodes.values()) node.actionsKind = null;
+  for (const node of transferNodes.values()) node.actions.dataset.kind = '';
+  dom.detailActions.dataset.kind = '';
   dom.pairActions.dataset.kind = '';
+  detailFilesFor = null;
 }
 
 // --- rendering -----------------------------------------------------------
@@ -179,6 +212,7 @@ function render() {
   renderPeers();
   renderPairing();
   renderTransfers();
+  renderDetail();
   if (!settingsDirty) renderSettings();
 }
 
@@ -282,11 +316,8 @@ function renderPairing() {
     && (PAIRING_LIVE.has(p.status) || p.status === 'failed' || p.status === 'rejected'));
 
   dom.pairDialog.hidden = !active;
-  if (!active) {
-    if (dom.settings.hidden) dom.scrim.hidden = true;
-    return;
-  }
-  dom.scrim.hidden = false;
+  syncOverlay();
+  if (!active) return;
 
   const broken = active.status === 'failed' || active.status === 'rejected';
   dom.pairDialog.classList.toggle('is-failed', broken);
@@ -338,6 +369,9 @@ function renderPairActions(pairing, broken) {
 function renderTransfers() {
   const transfers = state.transfers ?? [];
   dom.transfersEmpty.hidden = transfers.length > 0;
+  // Nothing to clear while everything on the list is still running, and a
+  // button that would do nothing should not be there to press.
+  dom.clearHistory.hidden = !transfers.some((x) => !ACTIVE.has(x.status) && x.status !== 'pending');
 
   const seen = new Set();
   transfers.forEach((transfer, index) => {
@@ -360,10 +394,13 @@ function renderTransfers() {
 function buildTransfer(transfer) {
   const root = document.createElement('article');
   root.className = 'transfer';
+  // The title is a real button rather than a click handler on the card: the
+  // card already contains buttons, and something that opens a panel has to be
+  // reachable by keyboard like the rest of them.
   root.innerHTML = `
     <div class="transfer__head">
       <span class="transfer__arrow"></span>
-      <span class="transfer__title"></span>
+      <button type="button" class="transfer__title"></button>
       <span class="transfer__status"></span>
       <span class="transfer__rate"></span>
     </div>
@@ -391,11 +428,15 @@ function buildTransfer(transfer) {
     actions: root.querySelector('.transfer__actions'),
   };
   node.arrow.textContent = transfer.direction === 'in' ? '↓' : '↑';
+  node.title.addEventListener('click', () => openDetail(transfer.id));
   return node;
 }
 
 function titleFor(transfer) {
-  const first = transfer.files?.[0]?.rel ?? '';
+  // A remembered transfer kept the first name and nothing else of its file
+  // list, which is exactly enough to be called the same thing it was called
+  // while it was running — see history.js.
+  const first = transfer.files?.[0]?.rel ?? transfer.firstFile ?? '';
   const name = first.split('/').pop() || '—';
   const extra = (transfer.fileCount ?? 1) - 1;
   const label = extra > 0 ? `${name} ${t.t('transfer.andMore', { n: extra })}` : name;
@@ -419,34 +460,11 @@ function updateTransfer(node, transfer) {
   node.fill.style.width = `${Math.min(100, ratio * 100).toFixed(2)}%`;
   node.rate.textContent = active ? rate(transfer.speed) : '';
 
-  const files = t.plural('transfer.files', transfer.fileCount ?? 0);
-  if (done) {
-    const seconds = (transfer.finishedAt - transfer.startedAt) / 1000;
-    const average = seconds > 0 ? transfer.totalSize / seconds : 0;
-    node.progress.textContent = `${bytes(transfer.totalSize)} · ${files}`;
-    node.eta.textContent = average
-      ? `${duration(seconds)} · ${t.t('transfer.average', { rate: rate(average) })}`
-      : duration(seconds);
-  } else if (['failed', 'declined', 'cancelled'].includes(transfer.status)) {
-    node.progress.textContent = transfer.error ?? '';
-    node.eta.textContent = '';
-  } else {
-    node.progress.textContent = `${t.t('transfer.of', {
-      received: bytes(transfer.received), total: bytes(transfer.totalSize),
-    })} · ${files}`;
-    // Elapsed as well as remaining. A long transfer wants both: the estimate
-    // moves around with the link, and how long it has already been running is
-    // the one number that cannot be wrong.
-    const parts = [];
-    if (transfer.startedAt) {
-      parts.push(t.t('transfer.elapsed', { time: duration((Date.now() - transfer.startedAt) / 1000) }));
-    }
-    if (active && transfer.speed > 0) {
-      const remaining = (transfer.totalSize - transfer.received) / transfer.speed;
-      parts.push(t.t('transfer.remaining', { time: duration(remaining) }));
-    }
-    node.eta.textContent = parts.join(' · ');
-  }
+  const { progress, timing } = describe(transfer);
+  // On a card the error takes the place of the byte count: there is one line
+  // for it, and a transfer that failed has nothing else worth putting there.
+  node.progress.textContent = BROKEN.has(transfer.status) ? (transfer.error ?? progress) : progress;
+  node.eta.textContent = timing;
 
   updateTrace(node, transfer, active);
 
@@ -454,7 +472,54 @@ function updateTransfer(node, transfer) {
   node.hint.hidden = !hint;
   if (hint) node.hint.textContent = hint;
 
-  updateActions(node, transfer);
+  renderActions(node.actions, transfer);
+}
+
+/**
+ * The two lines of numbers under a transfer, written once for the card and
+ * the detail drawer both. They show the same transfer and disagreeing about
+ * how far along it is would be worse than either version alone.
+ */
+function describe(transfer) {
+  const files = t.plural('transfer.files', transfer.fileCount ?? 0);
+  const finished = transfer.finishedAt ?? 0;
+
+  if (transfer.status === 'completed') {
+    const seconds = (finished - transfer.startedAt) / 1000;
+    const average = seconds > 0 ? transfer.totalSize / seconds : 0;
+    const took = average
+      ? `${duration(seconds)} · ${t.t('transfer.average', { rate: rate(average) })}`
+      : duration(seconds);
+    return { progress: `${bytes(transfer.totalSize)} · ${files}`, timing: [when(finished), took].filter(Boolean).join(' · ') };
+  }
+
+  if (BROKEN.has(transfer.status)) {
+    return {
+      progress: `${t.t('transfer.of', {
+        received: bytes(transfer.received), total: bytes(transfer.totalSize),
+      })} · ${files}`,
+      timing: when(finished),
+    };
+  }
+
+  // Elapsed as well as remaining. A long transfer wants both: the estimate
+  // moves around with the link, and how long it has already been running is
+  // the one number that cannot be wrong.
+  const parts = [];
+  if (transfer.startedAt) {
+    parts.push(t.t('transfer.elapsed', { time: duration((Date.now() - transfer.startedAt) / 1000) }));
+  }
+  if (ACTIVE.has(transfer.status) && transfer.speed > 0) {
+    parts.push(t.t('transfer.remaining', {
+      time: duration((transfer.totalSize - transfer.received) / transfer.speed),
+    }));
+  }
+  return {
+    progress: `${t.t('transfer.of', {
+      received: bytes(transfer.received), total: bytes(transfer.totalSize),
+    })} · ${files}`,
+    timing: parts.join(' · '),
+  };
 }
 
 // Below this a modern Wi-Fi link is clearly not delivering what it could:
@@ -487,7 +552,12 @@ function slowLinkHint(transfer, samples) {
   return t.t('transfer.slowLink');
 }
 
-function updateActions(node, transfer) {
+/**
+ * The controls for one transfer, into whichever container asked for them —
+ * the card, or the detail drawer, which covers the card while it is open and
+ * would otherwise put the pause button out of reach.
+ */
+function renderActions(container, transfer) {
   // A sender that can pause gets a second button, and which one it is depends
   // on the current state — so the paused flag is part of the identity of this
   // set of controls, not just of their labels.
@@ -496,12 +566,13 @@ function updateActions(node, transfer) {
     : ACTIVE.has(transfer.status) ? (canPause ? `cancel:${transfer.paused ? 'resume' : 'pause'}` : 'cancel')
       : transfer.status === 'completed' && transfer.direction === 'in' ? 'reveal' : 'none';
 
-  if (node.actionsKind === wanted) return;
-  node.actionsKind = wanted;
-  node.actions.replaceChildren();
+  const kind = `${transfer.id}:${wanted}`;
+  if (container.dataset.kind === kind) return;
+  container.dataset.kind = kind;
+  container.replaceChildren();
 
   if (wanted === 'decide') {
-    node.actions.append(
+    container.append(
       button(t.t('action.accept'), 'button button--primary button--quiet',
         () => api('/api/respond', { transferId: transfer.id, accept: true })),
       button(t.t('action.decline'), 'button button--quiet',
@@ -509,19 +580,21 @@ function updateActions(node, transfer) {
     );
   } else if (wanted.startsWith('cancel')) {
     if (wanted.endsWith('resume')) {
-      node.actions.append(button(t.t('action.resume'), 'button button--quiet',
+      container.append(button(t.t('action.resume'), 'button button--quiet',
         () => api('/api/resume', { transferId: transfer.id })));
     } else if (wanted.endsWith('pause')) {
-      node.actions.append(button(t.t('action.pause'), 'button button--quiet',
+      container.append(button(t.t('action.pause'), 'button button--quiet',
         () => api('/api/pause', { transferId: transfer.id })));
     }
-    node.actions.append(button(t.t('action.cancel'), 'button button--quiet',
+    container.append(button(t.t('action.cancel'), 'button button--quiet',
       () => api('/api/cancel', { transferId: transfer.id })));
   } else if (wanted === 'reveal') {
-    node.actions.append(button(t.t('action.reveal'), 'button button--quiet', () => api('/api/open-folder', {
+    container.append(button(t.t('action.reveal'), 'button button--quiet', () => api('/api/open-folder', {
       path: transfer.destDir,
       // A single file gets highlighted; a folder of them just gets opened.
-      select: transfer.fileCount === 1 ? (transfer.files?.[0]?.path ?? null) : null,
+      // A remembered transfer kept that one path and nothing else — see
+      // history.js — so both shapes are read here.
+      select: transfer.fileCount === 1 ? (transfer.files?.[0]?.path ?? transfer.filePath ?? null) : null,
     })));
   }
 }
@@ -533,6 +606,163 @@ function button(text, className, onClick) {
   node.textContent = text;
   node.addEventListener('click', () => onClick().catch(toast));
   return node;
+}
+
+// --- transfer detail ------------------------------------------------------
+//
+// The list answers "is anything happening". This answers "what exactly": which
+// files have arrived, which one is moving right now, which are still queued —
+// and, for a file that has landed, where to find it.
+
+// Nobody reads four thousand rows, and building that many would stall the
+// frame that opens the drawer. Past this the panel says how many it is not
+// showing rather than pretending the list is complete.
+const DETAIL_FILE_LIMIT = 500;
+
+function openDetail(id) {
+  detailId = id;
+  detailFilesFor = null;
+  if (!dom.settings.hidden) openSettings(false);
+  renderDetail();
+}
+
+function closeDetail() {
+  detailId = null;
+  detailFilesFor = null;
+  detailFileNodes.clear();
+  dom.detail.hidden = true;
+  dom.detailActions.dataset.kind = '';
+  syncOverlay();
+}
+
+function renderDetail() {
+  if (!detailId) return;
+  const transfer = (state.transfers ?? []).find((x) => x.id === detailId);
+  // Cleared, or pushed off the end of a list that keeps only the last fifty.
+  if (!transfer) return closeDetail();
+
+  dom.detail.hidden = false;
+  syncOverlay();
+
+  dom.detailTitle.textContent = titleFor(transfer);
+  // The heading is one line and a folder of photos runs past it.
+  dom.detailTitle.title = dom.detailTitle.textContent;
+  const { progress, timing } = describe(transfer);
+  const status = transfer.paused ? t.t('status.paused') : t.t(`status.${transfer.status}`);
+  dom.detailLine.textContent = `${status} · ${progress}`;
+  dom.detailTiming.textContent = timing;
+  dom.detailError.hidden = !transfer.error;
+  dom.detailError.textContent = transfer.error ?? '';
+
+  renderActions(dom.detailActions, transfer);
+  renderDetailFiles(transfer);
+}
+
+function renderDetailFiles(transfer) {
+  const files = transfer.files ?? [];
+  const shown = files.slice(0, DETAIL_FILE_LIMIT);
+
+  dom.detailNote.hidden = files.length > 0 && files.length <= DETAIL_FILE_LIMIT;
+  if (files.length === 0) {
+    // Only a remembered transfer reaches this: the file list is deliberately
+    // not stored, and the folder it landed in answers the question instead.
+    dom.detailNote.textContent = t.t('detail.noFileList');
+  } else if (files.length > DETAIL_FILE_LIMIT) {
+    dom.detailNote.textContent = t.t('detail.more', { shown: DETAIL_FILE_LIMIT, total: files.length });
+  }
+
+  // Rows are built once and then updated in place. At four hundred files a
+  // rebuild three times a second is a page that cannot be scrolled.
+  if (detailFilesFor !== transfer.id) {
+    detailFilesFor = transfer.id;
+    detailFileNodes.clear();
+    dom.detailFiles.replaceChildren(...shown.map((file, index) => {
+      const node = buildFileRow(transfer, index);
+      detailFileNodes.set(index, node);
+      return node.root;
+    }));
+  }
+  shown.forEach((file, index) => updateFileRow(detailFileNodes.get(index), transfer, file));
+}
+
+function buildFileRow(transfer, index) {
+  const root = document.createElement('li');
+  root.className = 'file';
+  root.innerHTML = '<span class="file__mark"></span>'
+    + '<span class="file__body"><span class="file__name"></span>'
+    + '<span class="file__track" hidden><span class="file__fill"></span></span></span>'
+    + '<span class="file__size"></span>';
+
+  const node = {
+    root,
+    mark: root.querySelector('.file__mark'),
+    name: root.querySelector('.file__name'),
+    track: root.querySelector('.file__track'),
+    fill: root.querySelector('.file__fill'),
+    size: root.querySelector('.file__size'),
+    shape: null,
+  };
+
+  // Reveal rather than open. A phone has nowhere to put you down, so the
+  // Android app launches the file; a desktop has a file manager, and pointing
+  // at a file someone just accepted over the network is the safer half of
+  // what they wanted anyway.
+  node.reveal = button(t.t('action.revealFile'), 'button button--quiet file__reveal', () => {
+    // Read at click time, not from the transfer these rows were built from.
+    // The destination is only chosen when an offer is accepted, and a file's
+    // path only exists once it has been written — both are still empty if the
+    // drawer was opened while the transfer was waiting for an answer.
+    const live = (state.transfers ?? []).find((x) => x.id === transfer.id);
+    return api('/api/open-folder', {
+      path: live?.destDir ?? null,
+      select: live?.files?.[index]?.path ?? null,
+    });
+  });
+  node.reveal.title = t.t('action.reveal');
+  return node;
+}
+
+function updateFileRow(node, transfer, file) {
+  if (!node) return;
+
+  const status = fileStatus(transfer, file);
+  const moved = file.received ?? 0;
+  const ratio = file.size > 0 ? moved / file.size : 1;
+  // Only redraw when something visible actually moved. Most rows in a long
+  // transfer are waiting or done and do not change from one frame to the next.
+  const shape = `${status}:${status === 'moving' ? Math.round(ratio * 200) : 0}`;
+  if (node.shape === shape) return;
+  node.shape = shape;
+
+  node.root.className = `file is-${status}`;
+  node.name.textContent = file.rel;
+  node.name.title = file.rel;
+  node.mark.title = t.t(`detail.${status}`);
+  node.track.hidden = status !== 'moving';
+  if (status === 'moving') node.fill.style.width = `${Math.min(100, ratio * 100).toFixed(1)}%`;
+  node.size.textContent = status === 'moving'
+    ? t.t('transfer.of', { received: bytes(moved), total: bytes(file.size) })
+    : bytes(file.size);
+
+  const canReveal = transfer.direction === 'in' && status === 'done' && Boolean(file.path);
+  if (canReveal && !node.reveal.isConnected) node.root.append(node.reveal);
+  else if (!canReveal && node.reveal.isConnected) node.reveal.remove();
+}
+
+function fileStatus(transfer, file) {
+  const size = file.size ?? 0;
+  const moved = file.received ?? 0;
+  if (transfer.status === 'pending') return 'waiting';
+  // An empty file never goes on the wire — the receiver creates it while it
+  // prepares the destination — so it is finished as soon as anything is.
+  if (size === 0 || moved >= size) return 'done';
+  if (BROKEN.has(transfer.status)) return moved > 0 ? 'failed' : 'waiting';
+  return moved > 0 ? 'moving' : 'waiting';
+}
+
+/** One scrim, three things that can sit on top of it. */
+function syncOverlay() {
+  dom.scrim.hidden = dom.settings.hidden && dom.detail.hidden && dom.pairDialog.hidden;
 }
 
 // --- throughput trace ----------------------------------------------------
@@ -800,8 +1030,9 @@ async function saveSettings(patch) {
 
 function openSettings(open) {
   dom.settings.hidden = !open;
-  dom.scrim.hidden = !open && dom.pairDialog.hidden;
   dom.settingsToggle.setAttribute('aria-expanded', String(open));
+  if (open && !dom.detail.hidden) closeDetail();
+  syncOverlay();
   if (open) { settingsDirty = false; renderSettings(); dom.setName.focus(); }
 }
 
@@ -828,12 +1059,22 @@ function toast(error, tone = 'error') {
 dom.pickFiles.addEventListener('click', () => sendPicked('files'));
 dom.pickFolder.addEventListener('click', () => sendPicked('folder'));
 dom.openFolder.addEventListener('click', () => api('/api/open-folder', {}).catch(toast));
+dom.clearHistory.addEventListener('click', () => api('/api/history/clear').catch(toast));
 
 dom.settingsToggle.addEventListener('click', () => openSettings(dom.settings.hidden));
 dom.settingsClose.addEventListener('click', () => openSettings(false));
-dom.scrim.addEventListener('click', () => { if (!dom.settings.hidden) openSettings(false); });
+dom.detailClose.addEventListener('click', closeDetail);
+
+// Whichever panel is on top gets dismissed; the pairing dialog is not one of
+// them, because walking away from a half-finished pairing by mistake is worse
+// than having to answer it.
+const dismissTop = () => {
+  if (!dom.detail.hidden) closeDetail();
+  else if (!dom.settings.hidden) openSettings(false);
+};
+dom.scrim.addEventListener('click', dismissTop);
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && !dom.settings.hidden) openSettings(false);
+  if (event.key === 'Escape') dismissTop();
 });
 
 for (const input of [dom.setName, dom.setDir]) {
