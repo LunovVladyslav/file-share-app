@@ -146,8 +146,14 @@ class DiscoveryService(
                 is DiscoveryPacket.Announce ->
                     if (peerTable.onAnnounce(packet, source, localInterfaces())) publish()
                 // Answer at once so a device that just joined sees us without
-                // waiting for the next scheduled announcement.
-                is DiscoveryPacket.Probe -> runCatching { send(bound, announcement()) }
+                // waiting for the next scheduled announcement — and answer the
+                // sender directly too. A probe that arrived as unicast came
+                // from somewhere our multicast and broadcast evidently cannot
+                // reach, or nobody would have had to type this address in.
+                is DiscoveryPacket.Probe -> runCatching {
+                    send(bound, announcement())
+                    sendTo(bound, announcement(), source)
+                }
                 is DiscoveryPacket.Bye -> if (peerTable.onBye(packet.id)) publish()
             }
         }
@@ -180,6 +186,27 @@ class DiscoveryService(
                 bound.send(DatagramPacket(payload, payload.size, InetAddress.getByName(target), port))
             }
         }
+    }
+
+    /** One datagram, one address — see reach() on the desktop and §4.2. */
+    private fun sendTo(bound: MulticastSocket, packet: DiscoveryPacket, target: String) {
+        val payload = DiscoveryCodec.encode(packet)
+        runCatching {
+            bound.send(DatagramPacket(payload, payload.size, InetAddress.getByName(target), port))
+        }
+    }
+
+    /**
+     * Knock on one address directly, for when discovery finds nothing because
+     * the network drops multicast and broadcast. Both packets go: a probe
+     * carries only an id, so the announcement alongside it is what lets the
+     * far side learn who is asking.
+     */
+    fun reach(address: String): Boolean {
+        val bound = socket ?: return false
+        sendTo(bound, DiscoveryPacket.Probe(self.id), address)
+        sendTo(bound, announcement(), address)
+        return true
     }
 
     private fun publish() {

@@ -645,6 +645,89 @@ h1, h2, h3, p { margin: 0; }
 .detail__actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .detail__actions:empty { display: none; }
 
+/* --- advanced ---------------------------------------------------- */
+
+.advanced { width: min(480px, 100vw); }
+
+.direct__status { font-size: 12.5px; min-height: 1.2em; color: var(--ink-2); }
+.direct__status.is-ok { color: var(--ok); }
+.direct__status.is-err { color: var(--err); }
+
+.guide__pickers { display: flex; gap: 8px; }
+
+.guide__picker { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+
+.guide__picker-label {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* One option is not a choice, so the row disappears rather than showing a
+   single chip nobody can act on. */
+#guide-routes:empty { display: none; }
+
+.guide__why {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+
+.guide__steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.guide__step {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guide__step::before {
+  content: counter(step);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 20px;
+  text-align: center;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  height: 20px;
+}
+
+/* Which machine the step is for, said once rather than repeated inside every
+   sentence — the two devices are often the same platform. */
+.guide__os {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  vertical-align: 1px;
+}
+
+.guide__step code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
 .files {
   list-style: none;
   margin: 0;

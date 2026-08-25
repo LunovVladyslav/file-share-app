@@ -306,6 +306,20 @@ four values from the secrets `ANDROID_KEYSTORE_BASE64`,
 If a device is visible but connecting fails, one side may have forgotten it.
 Pair again.
 
+If none of that helps, the network is dropping the announcements devices find
+each other with while still carrying ordinary traffic — which guest networks and
+some access points do. **Settings → Advanced → Direct connection** takes the
+address shown at the top of the other screen and knocks on it directly. One
+address on one device is enough; both then see each other.
+
+The same panel answers the other half of the question — what to do when there is
+no network at all. Pick the two platforms and it lays out the steps: a phone
+hotspot when one of them is a phone (mobile data can stay off — traffic between
+devices on a hotspot never leaves it), an Ethernet cable between two computers,
+or any phone at all holding the network up for both of them. Windows and macOS
+generally will not raise an access point without an internet connection to
+share, which is exactly what is missing in that situation; Linux will.
+
 ## Limits
 
 - Symlinks and special files are skipped — they do not survive a Windows ↔ macOS round trip predictably.

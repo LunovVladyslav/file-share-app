@@ -123,7 +123,47 @@
     </span>
   </label>
 
+  <button id="advanced-open" class="button" data-i18n="advanced.open"></button>
+
   <p id="settings-status" class="settings__status" role="status"></p>
+</aside>
+
+<aside id="advanced" class="drawer advanced" hidden aria-labelledby="advanced-title">
+  <div class="drawer__head">
+    <h2 id="advanced-title" class="drawer__title" data-i18n="advanced.title"></h2>
+    <button id="advanced-close" class="icon-button" data-i18n="settings.close"></button>
+  </div>
+
+  <div class="field">
+    <span class="field__label" data-i18n="direct.title"></span>
+    <span class="field__hint" data-i18n="direct.hint"></span>
+    <div class="field__row">
+      <input id="direct-address" class="input input--mono" type="text" spellcheck="false"
+             autocomplete="off" placeholder="192.168.43.1">
+      <button id="direct-find" class="button" data-i18n="direct.find"></button>
+    </div>
+    <p id="direct-status" class="direct__status" role="status"></p>
+  </div>
+
+  <div class="field">
+    <span class="field__label" data-i18n="guide.title"></span>
+    <span class="field__hint" data-i18n="guide.hint"></span>
+
+    <div class="guide__pickers">
+      <label class="guide__picker">
+        <span class="guide__picker-label" data-i18n="guide.thisDevice"></span>
+        <select id="guide-mine" class="input"></select>
+      </label>
+      <label class="guide__picker">
+        <span class="guide__picker-label" data-i18n="guide.otherDevice"></span>
+        <select id="guide-theirs" class="input"></select>
+      </label>
+    </div>
+
+    <div id="guide-routes" class="segmented" role="radiogroup"></div>
+    <p id="guide-why" class="guide__why"></p>
+    <ol id="guide-steps" class="guide__steps"></ol>
+  </div>
 </aside>
 
 <aside id="detail" class="drawer detail" hidden aria-labelledby="detail-title">

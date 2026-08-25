@@ -145,6 +145,17 @@ export class UiServer {
         return sendJson(res, ok ? 200 : 404, { ok });
       }
 
+      case 'POST /api/peers/find': {
+        const body = await readJson(req);
+        const address = String(body.address ?? '').trim();
+        if (!isIpv4(address)) return sendJson(res, 400, { error: 'not an IPv4 address' });
+        if (localInterfaces().some((i) => i.address === address)) {
+          return sendJson(res, 400, { error: 'that is this device' });
+        }
+        const peer = await this.#findByAddress(address);
+        return sendJson(res, 200, { peer: peer ?? null });
+      }
+
       case 'POST /api/pair/forget': {
         const body = await readJson(req);
         const ok = forgetPeer(body.deviceId);
@@ -258,6 +269,28 @@ export class UiServer {
     return peer;
   }
 
+  /**
+   * Knock on one address until somebody answers, or three seconds pass.
+   *
+   * Repeated rather than sent once: these are UDP datagrams on a network that
+   * has already proved it drops things, and the far side may still be starting
+   * up. Once it answers, the peer is in the list like any other — nothing
+   * downstream knows or cares that this one was typed in.
+   */
+  async #findByAddress(address) {
+    const before = new Set(this.discovery.peers.map((p) => p.id));
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      this.discovery.reach(address);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const peers = this.discovery.peers;
+      const found = peers.find((p) => p.address === address)
+        ?? peers.find((p) => !before.has(p.id));
+      if (found) return found;
+    }
+    return null;
+  }
+
   state() {
     const config = loadConfig();
     // One list, two sources. A transfer this run knows about is shown live —
@@ -350,6 +383,18 @@ const THEMES = new Set(['system', 'light', 'dark']);
 const VIEWS = new Set(['list', 'grid']);
 
 const ACTIVE_STATUSES = new Set(['pending', 'connecting', 'waiting', 'sending', 'receiving', 'finalizing']);
+
+/**
+ * Strict, because this string becomes the destination of a datagram. A regex
+ * that accepts "192.168.1.999" would have the socket resolve it as a hostname,
+ * which is a DNS lookup nobody asked for.
+ */
+function isIpv4(value) {
+  const parts = value.split('.');
+  return parts.length === 4 && parts.every((part) => (
+    /^\d{1,3}$/.test(part) && Number(part) <= 255
+  ));
+}
 
 function sendJson(res, status, body) {
   const payload = JSON.stringify(body);

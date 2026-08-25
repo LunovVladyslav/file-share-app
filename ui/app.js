@@ -32,6 +32,17 @@ const dom = {
   detailNote: el('detail-note'),
   detailFiles: el('detail-files'),
   detailClose: el('detail-close'),
+  advanced: el('advanced'),
+  advancedOpen: el('advanced-open'),
+  advancedClose: el('advanced-close'),
+  directAddress: el('direct-address'),
+  directFind: el('direct-find'),
+  directStatus: el('direct-status'),
+  guideMine: el('guide-mine'),
+  guideTheirs: el('guide-theirs'),
+  guideRoutes: el('guide-routes'),
+  guideWhy: el('guide-why'),
+  guideSteps: el('guide-steps'),
   settings: el('settings'),
   scrim: el('scrim'),
   settingsToggle: el('settings-toggle'),
@@ -202,6 +213,9 @@ function translateStatic() {
   dom.detailActions.dataset.kind = '';
   dom.pairActions.dataset.kind = '';
   detailFilesFor = null;
+  // The guide is assembled in script rather than marked up, so nothing above
+  // reaches its steps.
+  if (!dom.advanced.hidden) renderGuide();
 }
 
 // --- rendering -----------------------------------------------------------
@@ -623,6 +637,7 @@ function openDetail(id) {
   detailId = id;
   detailFilesFor = null;
   if (!dom.settings.hidden) openSettings(false);
+  if (!dom.advanced.hidden) openAdvanced(false);
   renderDetail();
 }
 
@@ -760,9 +775,192 @@ function fileStatus(transfer, file) {
   return moved > 0 ? 'moving' : 'waiting';
 }
 
-/** One scrim, three things that can sit on top of it. */
+/** One scrim, four things that can sit on top of it. */
 function syncOverlay() {
-  dom.scrim.hidden = dom.settings.hidden && dom.detail.hidden && dom.pairDialog.hidden;
+  dom.scrim.hidden = dom.settings.hidden && dom.detail.hidden
+    && dom.advanced.hidden && dom.pairDialog.hidden;
+}
+
+// --- advanced -------------------------------------------------------------
+//
+// Two things for the case the rest of the interface assumes away: that the two
+// devices are on a network at all, and that they can see each other on it.
+
+const PLATFORMS = ['windows', 'macos', 'linux', 'android'];
+const OS_LABEL = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android' };
+const HOTSPOT_COMMAND = 'nmcli device wifi hotspot ssid flyshare password 12345678';
+
+let guideMine = null;
+let guideTheirs = null;
+let guideRoute = null;
+
+function openAdvanced(open) {
+  dom.advanced.hidden = !open;
+  if (open) {
+    if (!dom.settings.hidden) openSettings(false);
+    if (!dom.detail.hidden) closeDetail();
+  }
+  syncOverlay();
+  if (open) {
+    renderAdvanced();
+    dom.directAddress.focus();
+  }
+}
+
+function renderAdvanced() {
+  // This machine's own platform is known, so it is the starting point — but it
+  // is still a choice, because someone may be reading this to set up two other
+  // devices from the one that has the screen.
+  if (guideMine === null) {
+    guideMine = PLATFORMS.includes(state.self.os) ? state.self.os : 'windows';
+  }
+  if (guideTheirs === null) guideTheirs = guideMine === 'android' ? 'windows' : 'android';
+
+  for (const [select, value] of [[dom.guideMine, guideMine], [dom.guideTheirs, guideTheirs]]) {
+    // Platform names are the same in every language, so these are built once.
+    if (select.options.length !== PLATFORMS.length) {
+      select.replaceChildren(...PLATFORMS.map((os) => option(os, OS_LABEL[os])));
+    }
+    select.value = value;
+  }
+  renderGuide();
+}
+
+/**
+ * Who can make a network when there isn't one.
+ *
+ * A phone always can, which settles it whenever there is one in the pair.
+ * Between two computers it is a real choice: a cable is far faster but needs
+ * two ports, and of the three desktop systems only Linux will raise an access
+ * point without an internet connection to share — which is precisely the
+ * situation this whole panel exists for.
+ */
+function routesFor(mine, theirs) {
+  if (mine === 'android' || theirs === 'android') {
+    return [{ id: 'hotspot', host: mine === 'android' ? 'mine' : 'theirs' }];
+  }
+  const routes = [{ id: 'cable' }];
+  if (mine === 'linux' || theirs === 'linux') {
+    routes.push({ id: 'linux', host: mine === 'linux' ? 'mine' : 'theirs' });
+  }
+  routes.push({ id: 'phone' });
+  return routes;
+}
+
+function renderGuide() {
+  const routes = routesFor(guideMine, guideTheirs);
+  if (!routes.some((r) => r.id === guideRoute)) guideRoute = routes[0].id;
+  const route = routes.find((r) => r.id === guideRoute);
+
+  // A single route is not a choice; showing one chip to press would only ask
+  // a question that has no second answer.
+  dom.guideRoutes.replaceChildren(...(routes.length > 1 ? routes.map((each) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'segmented__option';
+    chip.setAttribute('role', 'radio');
+    chip.textContent = t.t(`guide.route.${each.id}`);
+    const on = each.id === guideRoute;
+    chip.classList.toggle('is-on', on);
+    chip.setAttribute('aria-checked', String(on));
+    chip.addEventListener('click', () => { guideRoute = each.id; renderGuide(); });
+    return chip;
+  }) : []));
+
+  dom.guideWhy.textContent = t.t(`guide.why.${route.id}`);
+  dom.guideSteps.replaceChildren(...stepsFor(route).map(buildStep));
+}
+
+function stepsFor(route) {
+  const host = route.host === 'theirs' ? guideTheirs : guideMine;
+  const guest = route.host === 'theirs' ? guideMine : guideTheirs;
+  const finish = [
+    { text: t.t('guide.open') },
+    { text: t.t('guide.fallback') },
+  ];
+
+  if (route.id === 'hotspot') {
+    return [
+      { os: host, text: t.t('guide.create.android') },
+      { os: guest, text: t.t(`guide.join.${guest}`) },
+      ...finish,
+    ];
+  }
+  if (route.id === 'linux') {
+    return [
+      { os: host, text: t.t('guide.create.linux'), code: HOTSPOT_COMMAND },
+      { os: guest, text: t.t(`guide.join.${guest}`) },
+      ...finish,
+    ];
+  }
+  if (route.id === 'cable') {
+    return [{ text: t.t('guide.cable.plug') }, { text: t.t('guide.cable.wait') }, ...finish];
+  }
+  // Two computers that cannot raise a network, and a phone that can — without
+  // needing FlyShare on it at all. Joining is one step when both are the same
+  // platform, because it would otherwise be the same sentence printed twice.
+  const joins = [...new Set([guideMine, guideTheirs])]
+    .map((os) => ({ os, text: t.t(`guide.join.${os}`) }));
+  return [{ text: t.t('guide.phone.enable') }, ...joins, ...finish];
+}
+
+function buildStep(step) {
+  const item = document.createElement('li');
+  item.className = 'guide__step';
+
+  const body = document.createElement('span');
+  if (step.os) {
+    const chip = document.createElement('span');
+    chip.className = 'guide__os';
+    chip.textContent = OS_LABEL[step.os];
+    body.append(chip);
+  }
+  body.append(step.text);
+  if (step.code) {
+    const code = document.createElement('code');
+    code.textContent = step.code;
+    body.append(document.createElement('br'), code);
+  }
+
+  item.append(body);
+  return item;
+}
+
+// --- reaching one device by address ---------------------------------------
+
+function directStatus(text, tone = '') {
+  dom.directStatus.textContent = text;
+  dom.directStatus.className = `direct__status ${tone}`;
+}
+
+/** Same rule as the server's: four octets, nothing that needs resolving. */
+function isIpv4(value) {
+  const parts = value.split('.');
+  return parts.length === 4
+    && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+}
+
+async function findByAddress() {
+  const address = dom.directAddress.value.trim();
+  if (!isIpv4(address)) return directStatus(t.t('direct.badAddress'), 'is-err');
+  if ((state.self.addresses ?? []).includes(address)) {
+    return directStatus(t.t('direct.ownAddress'), 'is-err');
+  }
+
+  dom.directFind.disabled = true;
+  directStatus(t.t('direct.searching'));
+  try {
+    const { peer } = await api('/api/peers/find', { address });
+    if (!peer) return directStatus(t.t('direct.notFound'), 'is-err');
+    directStatus(t.t('direct.found', { name: peer.name }), 'is-ok');
+    // The point of pressing this was to get to that device, and it is behind
+    // the panel now. Long enough to read the name, then out of the way.
+    setTimeout(() => { if (!dom.advanced.hidden) openAdvanced(false); }, 1200);
+  } catch (err) {
+    directStatus(err.message, 'is-err');
+  } finally {
+    dom.directFind.disabled = false;
+  }
 }
 
 // --- throughput trace ----------------------------------------------------
@@ -1031,7 +1229,10 @@ async function saveSettings(patch) {
 function openSettings(open) {
   dom.settings.hidden = !open;
   dom.settingsToggle.setAttribute('aria-expanded', String(open));
-  if (open && !dom.detail.hidden) closeDetail();
+  if (open) {
+    if (!dom.detail.hidden) closeDetail();
+    if (!dom.advanced.hidden) openAdvanced(false);
+  }
   syncOverlay();
   if (open) { settingsDirty = false; renderSettings(); dom.setName.focus(); }
 }
@@ -1064,12 +1265,25 @@ dom.clearHistory.addEventListener('click', () => api('/api/history/clear').catch
 dom.settingsToggle.addEventListener('click', () => openSettings(dom.settings.hidden));
 dom.settingsClose.addEventListener('click', () => openSettings(false));
 dom.detailClose.addEventListener('click', closeDetail);
+dom.advancedOpen.addEventListener('click', () => openAdvanced(true));
+dom.advancedClose.addEventListener('click', () => openAdvanced(false));
+dom.directFind.addEventListener('click', findByAddress);
+dom.directAddress.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') findByAddress();
+});
+for (const [select, set] of [
+  [dom.guideMine, (v) => { guideMine = v; }],
+  [dom.guideTheirs, (v) => { guideTheirs = v; }],
+]) {
+  select.addEventListener('change', () => { set(select.value); renderGuide(); });
+}
 
 // Whichever panel is on top gets dismissed; the pairing dialog is not one of
 // them, because walking away from a half-finished pairing by mistake is worse
 // than having to answer it.
 const dismissTop = () => {
-  if (!dom.detail.hidden) closeDetail();
+  if (!dom.advanced.hidden) openAdvanced(false);
+  else if (!dom.detail.hidden) closeDetail();
   else if (!dom.settings.hidden) openSettings(false);
 };
 dom.scrim.addEventListener('click', dismissTop);

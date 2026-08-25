@@ -114,6 +114,68 @@ const STRINGS = {
     'settings.autoAccept': 'Accept files without asking',
     'settings.autoAcceptHint': 'Applies only to devices you already connected.',
     'settings.saved': 'Saved',
+    'advanced.title': 'Advanced',
+    'advanced.open': 'Advanced — direct connection and setup guide',
+
+    'direct.title': 'Direct connection',
+    'direct.hint': 'For when the other device never appears. Guest networks, firewalls and '
+      + 'some access points drop the announcements devices find each other with, but still '
+      + 'carry ordinary traffic. Type the address shown at the top of the other screen and '
+      + 'both devices will see each other.',
+    'direct.find': 'Find',
+    'direct.searching': 'Knocking…',
+    'direct.found': 'Found “{name}”. It is in the device list now.',
+    'direct.notFound': 'Nothing answered at that address. Check that FlyShare is open on the '
+      + 'other device and that both are on the same network.',
+    'direct.badAddress': 'That is not an IPv4 address — four numbers separated by dots.',
+    'direct.ownAddress': 'That is this device.',
+
+    'guide.title': 'No network?',
+    'guide.hint': 'Two devices do not need a router, only the same network. Pick what you have '
+      + 'and the steps follow.',
+    'guide.thisDevice': 'This device',
+    'guide.otherDevice': 'The other device',
+
+    'guide.route.hotspot': 'Phone hotspot',
+    'guide.route.cable': 'Cable',
+    'guide.route.linux': 'Linux hotspot',
+    'guide.route.phone': 'Via a phone',
+
+    'guide.why.hotspot': 'A phone can raise a network anywhere, which is the whole problem '
+      + 'solved. Nothing goes over mobile data — traffic between devices on the hotspot never '
+      + 'leaves it — so mobile data can stay off.',
+    'guide.why.cable': 'By far the fastest option if both machines have an Ethernet port: '
+      + 'a gigabit link carries several times what Wi-Fi does, and there is nothing to '
+      + 'configure.',
+    'guide.why.linux': 'Linux will raise an access point with no internet connection to share, '
+      + 'which Windows and macOS generally refuse to do.',
+    'guide.why.phone': 'Any phone will do and FlyShare does not need to be on it — it only '
+      + 'holds the network up. Windows and macOS both want a connection to share before they '
+      + 'will create one, which is exactly what is missing here.',
+
+    'guide.create.android': 'Settings → Connections → Mobile hotspot, and turn it on. Mobile '
+      + 'data can stay off: what the two devices send each other never leaves the hotspot.',
+    'guide.create.linux': 'Raise an access point with one command. Change the password to '
+      + 'something of your own — eight characters or more.',
+
+    'guide.join.windows': 'Click the network icon in the taskbar and join that network.',
+    'guide.join.macos': 'Open the Wi-Fi menu in the menu bar and join that network.',
+    'guide.join.linux': 'Open the network menu and join that network.',
+    'guide.join.android': 'Settings → Wi-Fi, and join that network.',
+
+    'guide.cable.plug': 'Run an Ethernet cable between the two machines. A crossover cable is '
+      + 'not needed — network cards have swapped the pairs themselves for twenty years.',
+    'guide.cable.wait': 'Configure nothing. With no router handing out addresses, both ends '
+      + 'give themselves one after about half a minute.',
+    'guide.phone.enable': 'Turn on the hotspot on any phone. FlyShare does not need to be '
+      + 'installed on it — the phone only carries the network, and takes no part in the '
+      + 'transfer.',
+
+    'guide.open': 'Open FlyShare on both devices. Each appears in the other’s list within a '
+      + 'few seconds — then compare the six-digit code once.',
+    'guide.fallback': 'If they do not find each other, read the address at the top of one '
+      + 'screen and type it into Direct connection above.',
+
 
     'error.selectDeviceFirst': 'Pick a device to send the files to first.',
     'error.requestFailed': 'Request failed ({status})',
@@ -225,6 +287,68 @@ const STRINGS = {
     'settings.autoAccept': 'Dateien ohne Nachfrage annehmen',
     'settings.autoAcceptHint': 'Gilt nur für bereits verbundene Geräte.',
     'settings.saved': 'Gespeichert',
+    'advanced.title': 'Erweitert',
+    'advanced.open': 'Erweitert — direkte Verbindung und Anleitung',
+
+    'direct.title': 'Direkte Verbindung',
+    'direct.hint': 'Für den Fall, dass das andere Gerät gar nicht erscheint. Gästenetze, '
+      + 'Firewalls und manche Access Points verwerfen die Ankündigungen, mit denen Geräte '
+      + 'einander finden, leiten normalen Verkehr aber weiter. Geben Sie die Adresse ein, die '
+      + 'oben auf dem anderen Bildschirm steht — danach sehen sich beide Geräte.',
+    'direct.find': 'Suchen',
+    'direct.searching': 'Klopfe an…',
+    'direct.found': '„{name}“ gefunden. Es steht jetzt in der Geräteleverliste.',
+    'direct.notFound': 'Unter dieser Adresse hat nichts geantwortet. Prüfen Sie, ob FlyShare '
+      + 'auf dem anderen Gerät läuft und beide im selben Netz sind.',
+    'direct.badAddress': 'Das ist keine IPv4-Adresse — vier durch Punkte getrennte Zahlen.',
+    'direct.ownAddress': 'Das ist dieses Gerät.',
+
+    'guide.title': 'Kein Netz?',
+    'guide.hint': 'Zwei Geräte brauchen keinen Router, nur dasselbe Netz. Wählen Sie, was Sie '
+      + 'haben — die Schritte richten sich danach.',
+    'guide.thisDevice': 'Dieses Gerät',
+    'guide.otherDevice': 'Das andere Gerät',
+
+    'guide.route.hotspot': 'Handy-Hotspot',
+    'guide.route.cable': 'Kabel',
+    'guide.route.linux': 'Linux-Hotspot',
+    'guide.route.phone': 'Über ein Handy',
+
+    'guide.why.hotspot': 'Ein Handy spannt überall ein Netz auf, und damit ist das Problem '
+      + 'gelöst. Über die mobilen Daten geht nichts — was die Geräte einander schicken, '
+      + 'verlässt den Hotspot nie —, die mobilen Daten können also aus bleiben.',
+    'guide.why.cable': 'Mit Abstand am schnellsten, wenn beide Rechner einen Ethernet-Anschluss '
+      + 'haben: Gigabit trägt ein Vielfaches von WLAN, und einzustellen ist nichts.',
+    'guide.why.linux': 'Linux spannt einen Access Point auch ohne Internetverbindung auf, die '
+      + 'sich teilen ließe — Windows und macOS weigern sich dabei meist.',
+    'guide.why.phone': 'Jedes Handy genügt, FlyShare muss nicht darauf sein — es hält nur '
+      + 'das Netz. Windows und macOS wollen erst eine Verbindung zum Teilen haben, und genau '
+      + 'die fehlt hier.',
+
+    'guide.create.android': 'Einstellungen → Verbindungen → Mobiler Hotspot, dann '
+      + 'einschalten. Die mobilen Daten können aus bleiben: Was die beiden Geräte einander '
+      + 'schicken, verlässt den Hotspot nicht.',
+    'guide.create.linux': 'Ein Befehl spannt den Access Point auf. Setzen Sie ein eigenes '
+      + 'Passwort ein — acht Zeichen oder mehr.',
+
+    'guide.join.windows': 'Netzwerksymbol in der Taskleiste anklicken und diesem Netz beitreten.',
+    'guide.join.macos': 'WLAN-Menü in der Menüleiste öffnen und diesem Netz beitreten.',
+    'guide.join.linux': 'Netzwerkmenü öffnen und diesem Netz beitreten.',
+    'guide.join.android': 'Einstellungen → WLAN, und diesem Netz beitreten.',
+
+    'guide.cable.plug': 'Ein Ethernet-Kabel zwischen beide Rechner legen. Ein Crossover-Kabel '
+      + 'braucht es nicht — Netzwerkkarten drehen die Paare seit zwanzig Jahren selbst.',
+    'guide.cable.wait': 'Nichts einstellen. Ohne Router, der Adressen vergibt, geben sich beide '
+      + 'Seiten nach etwa einer halben Minute selbst eine.',
+    'guide.phone.enable': 'Den Hotspot auf einem beliebigen Handy einschalten. FlyShare muss '
+      + 'nicht darauf sein — das Handy trägt nur das Netz und ist an der Übertragung nicht '
+      + 'beteiligt.',
+
+    'guide.open': 'FlyShare auf beiden Geräten öffnen. Jedes erscheint binnen Sekunden in der '
+      + 'Liste des anderen — dann einmal den sechsstelligen Code vergleichen.',
+    'guide.fallback': 'Finden sie sich nicht, lesen Sie die Adresse oben auf einem Bildschirm ab '
+      + 'und geben Sie sie oben unter Direkte Verbindung ein.',
+
 
     'error.selectDeviceFirst': 'Wähle zuerst ein Gerät aus, an das die Dateien gehen sollen.',
     'error.requestFailed': 'Anfrage fehlgeschlagen ({status})',
@@ -336,6 +460,68 @@ const STRINGS = {
     'settings.autoAccept': 'Приймати файли без запиту',
     'settings.autoAcceptHint': 'Стосується лише вже з’єднаних пристроїв.',
     'settings.saved': 'Збережено',
+    'advanced.title': 'Додатково',
+    'advanced.open': 'Додатково — пряме підключення та гайд',
+
+    'direct.title': 'Пряме підключення',
+    'direct.hint': 'Для випадку, коли інший пристрій так і не з’являється. Гостьові мережі, '
+      + 'брандмауери та деякі точки доступу відкидають оголошення, за якими пристрої '
+      + 'знаходять одне одного, але звичайний трафік пропускають. Введіть адресу, '
+      + 'показану вгорі на іншому екрані — і пристрої побачать одне одного.',
+    'direct.find': 'Знайти',
+    'direct.searching': 'Стукаю…',
+    'direct.found': 'Знайдено «{name}». Він уже в списку пристроїв.',
+    'direct.notFound': 'За цією адресою ніхто не відповів. Перевірте, чи відкритий FlyShare '
+      + 'на іншому пристрої і чи обидва в одній мережі.',
+    'direct.badAddress': 'Це не IPv4-адреса — потрібно чотири числа через крапку.',
+    'direct.ownAddress': 'Це адреса цього пристрою.',
+
+    'guide.title': 'Немає мережі?',
+    'guide.hint': 'Двом пристроям потрібен не роутер, а спільна мережа. Оберіть, що в вас є — '
+      + 'кроки підлаштуються.',
+    'guide.thisDevice': 'Цей пристрій',
+    'guide.otherDevice': 'Інший пристрій',
+
+    'guide.route.hotspot': 'Точка з телефона',
+    'guide.route.cable': 'Кабель',
+    'guide.route.linux': 'Точка з Linux',
+    'guide.route.phone': 'Через телефон',
+
+    'guide.why.hotspot': 'Телефон створює мережу будь-де — це й є відповідь. Мобільний '
+      + 'трафік не витрачається: те, що пристрої передають одне одному, ніколи не '
+      + 'покидає точки доступу, тож мобільні дані можна лишити вимкненими.',
+    'guide.why.cable': 'Найшвидше, якщо в обох машин є порт Ethernet: гігабіт несе '
+      + 'в кілька разів більше за Wi-Fi, і налаштовувати нічого не треба.',
+    'guide.why.linux': 'Linux піднімає точку доступу без інтернет-з’єднання, яким '
+      + 'ділитися — Windows і macOS зазвичай відмовляються.',
+    'guide.why.phone': 'Спрацює будь-який телефон, і FlyShare на ньому не потрібен — '
+      + 'він лише тримає мережу. Windows і macOS спочатку хочуть з’єднання, яким '
+      + 'ділитися, а саме його тут і немає.',
+
+    'guide.create.android': 'Налаштування → Точка доступу та модем → увімкніть точку '
+      + 'доступу Wi-Fi. Мобільні дані можна лишити вимкненими: те, що пристрої '
+      + 'передають одне одному, не покидає точки доступу.',
+    'guide.create.linux': 'Підніміть точку доступу однією командою. Замініть пароль '
+      + 'на свій — вісім символів або більше.',
+
+    'guide.join.windows': 'Натисніть значок мережі на панелі завдань і під’єднайтесь до цієї мережі.',
+    'guide.join.macos': 'Відкрийте меню Wi-Fi у рядку меню і під’єднайтесь до цієї мережі.',
+    'guide.join.linux': 'Відкрийте меню мережі і під’єднайтесь до цієї мережі.',
+    'guide.join.android': 'Налаштування → Wi-Fi і під’єднайтесь до цієї мережі.',
+
+    'guide.cable.plug': 'З’єднайте машини кабелем Ethernet. Кросовер не потрібен — '
+      + 'мережеві карти вже двадцять років перевертають пари самі.',
+    'guide.cable.wait': 'Нічого не налаштовуйте. Без роутера, який роздає адреси, '
+      + 'обидва кінці візьмуть її собі самі за півхвилини.',
+    'guide.phone.enable': 'Увімкніть точку доступу на будь-якому телефоні. FlyShare '
+      + 'на ньому не потрібен — телефон лише тримає мережу і в передачі '
+      + 'участі не бере.',
+
+    'guide.open': 'Відкрийте FlyShare на обох пристроях. Кожен з’явиться в списку '
+      + 'іншого за кілька секунд — далі один раз звірте шестизначний код.',
+    'guide.fallback': 'Якщо не знайдуть одне одного — подивіться адресу вгорі на '
+      + 'одному екрані та введіть її в «Пряме підключення» вище.',
+
 
     'error.selectDeviceFirst': 'Спершу оберіть пристрій, якому надіслати файли.',
     'error.requestFailed': 'Запит не вдався ({status})',
@@ -447,6 +633,67 @@ const STRINGS = {
     'settings.autoAccept': 'Przyjmuj pliki bez pytania',
     'settings.autoAcceptHint': 'Dotyczy tylko już połączonych urządzeń.',
     'settings.saved': 'Zapisano',
+    'advanced.title': 'Zaawansowane',
+    'advanced.open': 'Zaawansowane — połączenie bezpośrednie i przewodnik',
+
+    'direct.title': 'Połączenie bezpośrednie',
+    'direct.hint': 'Na wypadek, gdy drugie urządzenie w ogóle się nie pojawia. Sieci dla '
+      + 'gości, zapory i niektóre punkty dostępu odrzucają ogłoszenia, po których '
+      + 'urządzenia się znajdują, ale zwykły ruch przepuszczają. Wpisz adres widoczny na '
+      + 'górze drugiego ekranu — oba urządzenia zobaczą się nawzajem.',
+    'direct.find': 'Znajdź',
+    'direct.searching': 'Pukam…',
+    'direct.found': 'Znaleziono „{name}”. Jest już na liście urządzeń.',
+    'direct.notFound': 'Pod tym adresem nikt nie odpowiedział. Sprawdź, czy FlyShare jest '
+      + 'otwarty na drugim urządzeniu i czy oba są w tej samej sieci.',
+    'direct.badAddress': 'To nie jest adres IPv4 — cztery liczby oddzielone kropkami.',
+    'direct.ownAddress': 'To jest to urządzenie.',
+
+    'guide.title': 'Nie ma sieci?',
+    'guide.hint': 'Dwa urządzenia nie potrzebują routera, tylko wspólnej sieci. Wybierz, co '
+      + 'masz — kroki się dopasują.',
+    'guide.thisDevice': 'To urządzenie',
+    'guide.otherDevice': 'Drugie urządzenie',
+
+    'guide.route.hotspot': 'Hotspot z telefonu',
+    'guide.route.cable': 'Kabel',
+    'guide.route.linux': 'Hotspot z Linuksa',
+    'guide.route.phone': 'Przez telefon',
+
+    'guide.why.hotspot': 'Telefon zbuduje sieć wszędzie — i to załatwia cały problem. '
+      + 'Transfer komórkowy nie jest zużywany: to, co urządzenia wysyłają sobie nawzajem, '
+      + 'nigdy nie opuszcza hotspotu, więc dane komórkowe mogą zostać wyłączone.',
+    'guide.why.cable': 'Zdecydowanie najszybsze, jeśli oba komputery mają port Ethernet: '
+      + 'gigabit przenosi wielokrotność tego co Wi-Fi, a konfigurować nie trzeba nic.',
+    'guide.why.linux': 'Linux postawi punkt dostępu bez łącza internetowego do '
+      + 'udostępnienia — Windows i macOS zwykle tego odmawiają.',
+    'guide.why.phone': 'Wystarczy dowolny telefon i FlyShare nie musi na nim być — telefon '
+      + 'tylko trzyma sieć. Windows i macOS najpierw chcą połączenia do udostępnienia, a '
+      + 'właśnie jego tu brakuje.',
+
+    'guide.create.android': 'Ustawienia → Połączenia → Hotspot Wi-Fi i włącz go. Dane '
+      + 'komórkowe mogą zostać wyłączone: to, co urządzenia sobie przesyłają, nie opuszcza '
+      + 'hotspotu.',
+    'guide.create.linux': 'Postaw punkt dostępu jednym poleceniem. Zmień hasło na własne — '
+      + 'osiem znaków lub więcej.',
+
+    'guide.join.windows': 'Kliknij ikonę sieci na pasku zadań i dołącz do tej sieci.',
+    'guide.join.macos': 'Otwórz menu Wi-Fi na pasku menu i dołącz do tej sieci.',
+    'guide.join.linux': 'Otwórz menu sieci i dołącz do tej sieci.',
+    'guide.join.android': 'Ustawienia → Wi-Fi i dołącz do tej sieci.',
+
+    'guide.cable.plug': 'Połącz komputery kablem Ethernet. Kabel krosowany nie jest '
+      + 'potrzebny — karty sieciowe od dwudziestu lat same zamieniają pary.',
+    'guide.cable.wait': 'Nie konfiguruj niczego. Bez routera rozdającego adresy obie strony '
+      + 'nadadzą je sobie same po około pół minuty.',
+    'guide.phone.enable': 'Włącz hotspot na dowolnym telefonie. FlyShare nie musi być na nim '
+      + 'zainstalowany — telefon tylko niesie sieć i nie bierze udziału w transferze.',
+
+    'guide.open': 'Otwórz FlyShare na obu urządzeniach. Każde pojawi się na liście drugiego '
+      + 'w ciągu kilku sekund — potem raz porównaj sześciocyfrowy kod.',
+    'guide.fallback': 'Jeśli się nie znajdą, odczytaj adres na górze jednego ekranu i wpisz '
+      + 'go powyżej w Połączeniu bezpośrednim.',
+
 
     'error.selectDeviceFirst': 'Najpierw wybierz urządzenie, do którego wysłać pliki.',
     'error.requestFailed': 'Żądanie nie powiodło się ({status})',

@@ -95,7 +95,20 @@ Hyper-V switch address that nothing else on the network can reach.
 
 Sent once on startup. Every device that receives it MUST answer with an
 `announce` immediately, so a device that just joined does not wait a full
-interval to populate its list.
+interval to populate its list. The answer goes to the usual targets **and**
+directly to the probe's source address.
+
+A probe MAY also be sent as a single unicast datagram to an address a person
+typed in. Guest networks, host firewalls and access points with client
+isolation drop multicast and broadcast while still routing unicast between
+clients, so this is the one path that survives when discovery otherwise finds
+nothing. It is why the answer must go back to the source: a device that had to
+be reached this way cannot be assumed to hear the sender's broadcasts either.
+
+A prober SHOULD send its own `announce` to that address alongside the probe.
+A probe carries only an `id`, so on its own it tells the receiver nothing about
+who is asking; sending both means one device reaching one address is enough for
+the two of them to find each other in both directions.
 
 ### 4.3 Bye
 
@@ -437,6 +450,8 @@ not beside it. This is covered by `test/protocol.js`.
 A new implementation is compatible when it can:
 
 - [ ] Announce, probe, and expire peers on UDP 45888, over both multicast and broadcast.
+- [ ] Answer a probe to the address it came from as well as to the usual targets, so a
+      device reached by unicast can be found on a network that drops the rest.
 - [ ] Choose a reachable peer address from `addrs` rather than trusting the packet source.
 - [ ] Complete a pairing as **both** initiator and responder, including verifying the commitment.
 - [ ] Produce the same six digits as the Node implementation for the same inputs.

@@ -137,7 +137,11 @@ export class Discovery extends EventEmitter {
   }
 
   announce() {
-    this.#send({
+    this.#send(this.#announcement());
+  }
+
+  #announcement() {
+    return {
       t: 'announce',
       id: this.config.deviceId,
       name: this.config.deviceName,
@@ -145,7 +149,29 @@ export class Discovery extends EventEmitter {
       port: TRANSFER_PORT,
       ver: PROTOCOL_VERSION,
       addrs: localInterfaces().map((i) => i.address),
-    });
+    };
+  }
+
+  /**
+   * Knock on one address directly — §4.2.
+   *
+   * The whole discovery mechanism is multicast and broadcast, and those are
+   * exactly what a guest network, a host firewall or an access point with
+   * client isolation throws away. A unicast datagram to an address someone
+   * typed in is the one thing that still gets through, and it is the same
+   * protocol underneath: the far side answers a probe and the peer appears in
+   * the list like any other.
+   *
+   * Both packets go, not just the probe. A probe carries only an id, so it
+   * tells the far side nothing about who is asking — sending our own
+   * announcement alongside means one device typing one address is enough for
+   * the two of them to find each other in both directions.
+   */
+  reach(address) {
+    if (!this.#socket || !address) return false;
+    this.#sendTo({ t: 'probe', id: this.config.deviceId }, address);
+    this.#sendTo(this.#announcement(), address);
+    return true;
   }
 
   #send(payload) {
@@ -166,6 +192,12 @@ export class Discovery extends EventEmitter {
     }
   }
 
+  #sendTo(payload, address) {
+    if (!this.#socket) return;
+    const buf = Buffer.from(JSON.stringify(payload));
+    this.#socket.send(buf, DISCOVERY_PORT, address, () => { /* best effort */ });
+  }
+
   #onMessage(msg, rinfo) {
     let payload;
     try {
@@ -176,8 +208,12 @@ export class Discovery extends EventEmitter {
     if (!payload?.id || payload.id === this.config.deviceId) return;
 
     if (payload.t === 'probe') {
-      // Answer immediately so a device that just joined sees us without waiting.
+      // Answer immediately so a device that just joined sees us without waiting,
+      // and answer the sender directly as well: a probe that arrived as unicast
+      // came from somewhere our multicast and broadcast evidently cannot reach,
+      // or it would not have needed to be typed in by hand.
       this.announce();
+      this.#sendTo(this.#announcement(), rinfo.address);
       return;
     }
     if (payload.t === 'bye') {
