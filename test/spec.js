@@ -256,5 +256,39 @@ console.log('\nthe mark:\n');
   );
 }
 
+/* --- opening the interface --------------------------------------------------
+ *
+ * A wrong path in the candidate list fails silently: nothing is found, the
+ * default browser opens a tab, and the app looks like it did before. Checking
+ * that whatever comes back is a real executable catches the typo without
+ * depending on which browsers this particular machine happens to have. */
+console.log('\nopening the interface:\n');
+{
+  const { findAppBrowser, appModeArgs, defaultBrowserCommand } =
+    await import('../src/util/browser.js');
+
+  const url = 'http://127.0.0.1:45890/?t=abc';
+  check(
+    JSON.stringify(appModeArgs(url)) === JSON.stringify([`--app=${url}`]),
+    'a window of its own is one flag, with the token intact',
+    appModeArgs(url).join(' '),
+  );
+
+  const fallback = defaultBrowserCommand(url);
+  check(
+    typeof fallback.command === 'string' && fallback.args.includes(url),
+    'and the fallback still hands the URL to the default browser',
+    `${fallback.command} ${fallback.args.join(' ')}`,
+  );
+
+  const browser = findAppBrowser();
+  check(
+    browser === null || fs.existsSync(browser),
+    'the browser search returns something real, or nothing at all',
+    String(browser),
+  );
+  console.log(`        (this machine: ${browser ?? 'no Chromium browser — will use a tab'})`);
+}
+
 console.log(failures === 0 ? '\nSpec matches the implementation.' : `\n${failures} mismatch(es).`);
 process.exit(failures === 0 ? 0 : 1);

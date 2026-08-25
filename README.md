@@ -238,6 +238,11 @@ possible.
 Ports can be changed with `FLYSHARE_DISCOVERY_PORT`, `FLYSHARE_TRANSFER_PORT`
 and `FLYSHARE_UI_PORT`.
 
+The interface opens in a window of its own — any Chromium-based browser can
+host a page as a standalone window, so there is no address bar, no tabs, and
+its own entry on the taskbar. Pass `--no-app` to get an ordinary browser tab
+instead, and `--no-open` to open nothing at all and use the printed URL.
+
 Deleting `identity.json` means pairing every device again — a deliberately
 visible failure rather than a silent one.
 

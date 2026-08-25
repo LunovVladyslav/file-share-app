@@ -7,9 +7,13 @@ import { pairedPeers } from './core/trust.js';
 import { TransferServer } from './core/server.js';
 import { Sender } from './core/client.js';
 import { UiServer } from './ui-server.js';
+import { findAppBrowser, appModeArgs, defaultBrowserCommand } from './util/browser.js';
 
 const args = new Set(process.argv.slice(2));
 const openBrowser = !args.has('--no-open');
+// --no-app for anyone who would rather have it in the browser they already
+// have open, with their extensions and their history.
+const appMode = !args.has('--no-app');
 
 async function main() {
   const config = loadConfig();
@@ -67,15 +71,22 @@ function fatal(what, err) {
 }
 
 function openUrl(url) {
-  const [command, cmdArgs] = process.platform === 'win32'
-    ? ['cmd.exe', ['/c', 'start', '', url]]
-    : process.platform === 'darwin'
-      ? ['open', [url]]
-      : ['xdg-open', [url]];
+  // A window of its own where that is possible, a browser tab where it is not.
+  const browser = appMode ? findAppBrowser() : null;
+  const { command, args: cmdArgs } = browser
+    ? { command: browser, args: appModeArgs(url) }
+    : defaultBrowserCommand(url);
+
   try {
-    spawn(command, cmdArgs, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    const child = spawn(command, cmdArgs, {
+      detached: true, stdio: 'ignore', windowsHide: true,
+    });
+    // A browser that fails to launch must not take this process with it: the
+    // URL is on screen, and opening it by hand still works.
+    child.once('error', () => {});
+    child.unref();
   } catch {
-    // Headless or no default browser — the URL is printed above either way.
+    // Headless, or no browser at all — the URL is printed above either way.
   }
 }
 
