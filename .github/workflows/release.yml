@@ -192,8 +192,12 @@ jobs:
 
             **Android** is not on Google Play, so the APK is installed directly.
             Open the downloaded file and allow installation from this source when
-            asked. It needs Android 8 or newer, and the phone has to be on the
-            same Wi-Fi as the computer — this app never uses the internet.
+            asked. It needs Android 8 or newer.
+
+            **Both devices have to be on the same network** — the Wi-Fi you are
+            already on, or a hotspot from either phone. Mobile data can stay off:
+            what two devices on a hotspot send each other never leaves it. This
+            app never uses the internet.
 
             Run it on both devices, compare the six-digit code once, and the two
             are paired for good.
