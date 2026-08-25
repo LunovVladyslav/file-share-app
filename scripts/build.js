@@ -150,7 +150,16 @@ async function injectIntoNode() {
  * The version fields come along for the ride: they are what Windows shows in
  * the file's Properties and in the SmartScreen prompt, where "unknown
  * publisher, FlyShare" reads better than "unknown publisher, Node.js".
+ *
+ * resedit rewrites the resource section in JavaScript rather than shelling out
+ * to a bundled rcedit.exe, which is what the obvious package for this does —
+ * and that package is marked as no longer supported. Being plain JS also means
+ * this step is not the reason the Windows build has to happen on Windows.
  */
+// Windows keeps resources per language; 1033 is en-US, and version strings
+// filed under a language nothing asks for are version strings nothing shows.
+const LANG_EN_US = 1033;
+
 async function setWindowsIcon() {
   const icon = path.join(ROOT, 'assets', 'flyshare.ico');
   if (!(await fs.stat(icon).catch(() => null))) {
@@ -159,19 +168,41 @@ async function setWindowsIcon() {
   }
 
   const version = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
-  const { rcedit } = await import('rcedit');
-  await rcedit(OUTPUT, {
-    icon,
-    'file-version': `${version}.0`,
-    'product-version': `${version}.0`,
-    'version-string': {
-      ProductName: 'FlyShare',
-      FileDescription: 'FlyShare — file transfer over the local network',
-      CompanyName: 'FlyShare',
-      LegalCopyright: 'MIT licensed',
-      OriginalFilename: path.basename(OUTPUT),
-    },
-  });
+  const [major, minor, patch] = version.split('.').map(Number);
+
+  const ResEdit = await import('resedit');
+  const exe = ResEdit.NtExecutable.from(await fs.readFile(OUTPUT));
+  const resources = ResEdit.NtExecutableResource.from(exe);
+
+  const ico = ResEdit.Data.IconFile.from(await fs.readFile(icon));
+  ResEdit.Resource.IconGroupEntry.replaceIconsForResource(
+    resources.entries,
+    1,
+    LANG_EN_US,
+    ico.icons.map((frame) => frame.data),
+  );
+
+  const info = ResEdit.Resource.VersionInfo.createEmpty();
+  info.lang = LANG_EN_US;
+  info.setFileVersion(major, minor, patch, 0);
+  info.setProductVersion(major, minor, patch, 0);
+  // The third argument is the one that matters and defaults to false: Windows
+  // finds these strings by reading the translation table first, so a language
+  // missing from it makes every field come back empty while the numeric
+  // version — which lives elsewhere — still reads fine.
+  info.setStringValues({ lang: LANG_EN_US, codepage: 1200 }, {
+    ProductName: 'FlyShare',
+    FileDescription: 'FlyShare — file transfer over the local network',
+    CompanyName: 'FlyShare',
+    LegalCopyright: 'MIT licensed',
+    OriginalFilename: path.basename(OUTPUT),
+    FileVersion: version,
+    ProductVersion: version,
+  }, true);
+  info.outputToResourceEntries(resources.entries);
+
+  resources.outputResource(exe);
+  await fs.writeFile(OUTPUT, Buffer.from(exe.generate()));
   console.log('  set the icon and version fields');
 }
 
