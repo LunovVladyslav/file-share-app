@@ -254,6 +254,32 @@ console.log('\nthe mark:\n');
     'the launcher icon and the splash draw the same path',
     `${android?.[1]} vs ${splash?.[1]}`,
   );
+
+  /* The favicon was the one that got away: a stroked chevron rather than the
+   * filled dart, which nobody noticed until it turned up in the title bar of
+   * the window --app opens. It is the same shape in a 16-unit box, so it can
+   * be recomputed and compared rather than eyeballed. */
+  if (css) {
+    const points = css[1].split(',').map((pair) => pair.trim().split(/\s+/)
+      .map((n) => Number(n.replace('%', '')) / 100));
+    const side = 16 * (50 / 72);
+    const left = (16 - side) / 2;
+    const top = 16 / 2 - 0.49 * side;
+    const want = `M${points.map(([px, py], i) => `${i ? 'L' : ''}${(left + px * side).toFixed(1)} `
+      + `${(top + py * side).toFixed(1)}`).join(' ')}Z`;
+
+    for (const file of ['ui/index.html', 'docs/index.html']) {
+      // The href is taken whole first: the SVG inside it is full of angle
+      // brackets, so anything that stops at one never reaches the path.
+      const href = read(file).match(/rel="icon" href="([^"]+)"/);
+      const favicon = href?.[1].match(/<path d='([^']+)'/);
+      check(
+        favicon?.[1] === want,
+        `the favicon in ${file} is the same mark`,
+        `${favicon?.[1]} vs ${want}`,
+      );
+    }
+  }
 }
 
 /* --- opening the interface --------------------------------------------------
