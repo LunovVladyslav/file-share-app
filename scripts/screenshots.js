@@ -127,6 +127,19 @@ const SHOTS = [
             document.querySelectorAll('.transfer__title')[0]?.click();`,
   },
   {
+    file: 'advanced.png',
+    size: [1180, 940],
+    setup: `settings({ language: 'en', theme: 'dark' });
+            await pause(500);
+            document.getElementById('advanced-open').click();
+            await pause(200);
+            // Two computers, which is the case with something to choose between.
+            const mine = document.getElementById('guide-mine');
+            mine.value = 'windows'; mine.dispatchEvent(new Event('change'));
+            const theirs = document.getElementById('guide-theirs');
+            theirs.value = 'macos'; theirs.dispatchEvent(new Event('change'));`,
+  },
+  {
     // Captured against a real handshake left waiting on the other machine —
     // the code in this picture was actually derived, not typed in.
     file: 'pairing.png',

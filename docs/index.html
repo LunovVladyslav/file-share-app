@@ -304,11 +304,13 @@ a { color: var(--signal); }
 </nav>
 
 <header class="hero wrap">
-  <p class="hero__eyebrow">Windows · macOS · Linux</p>
+  <p class="hero__eyebrow">Windows · macOS · Linux · Android</p>
   <h1 class="hero__title">Your files, across the room, <em>at wire speed</em></h1>
   <p class="hero__sub">
-    FlyShare moves files straight between your own computers over Wi-Fi.
-    No cloud round trip, no accounts, no compression behind your back.
+    FlyShare moves files straight between your own devices — computers and
+    phones — over the network they are already on. No cloud round trip, no
+    accounts, no compression behind your back. One Wi-Fi network is the whole
+    requirement, and a phone hotspot is one.
   </p>
 
   <div class="hero__actions">
@@ -354,6 +356,43 @@ a { color: var(--signal); }
       <p class="card__body">
         Two copies instead of one, a walk across the room, and a filesystem
         argument between Windows and macOS.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="section wrap">
+  <p class="section__eyebrow">What it needs</p>
+  <h2 class="section__title">One network. That is the whole requirement.</h2>
+  <p class="section__lead">
+    Not a router, not an internet connection, not an account. The two devices
+    only have to be able to reach each other — and there is more than one way
+    for that to be true.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <h3 class="card__title">The Wi-Fi you are already on</h3>
+      <p class="card__body">
+        Home, office, a friend's flat. Both devices join it and each appears in
+        the other's list within seconds. Nothing is uploaded anywhere; the bytes
+        go from one disk to the other and never leave the building.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Or a phone hotspot</h3>
+      <p class="card__body">
+        No router within reach? Turn on the hotspot on any phone and join both
+        devices to it. Mobile data can stay switched off — what two devices on a
+        hotspot send each other never leaves it, so none of it is spent.
+      </p>
+    </div>
+    <div class="card">
+      <h3 class="card__title">Or type the address</h3>
+      <p class="card__body">
+        Guest networks sometimes drop the announcements devices find each other
+        with while still carrying everything else. Advanced → Direct connection
+        takes the address shown on the other screen and knocks on it directly.
       </p>
     </div>
   </div>
@@ -492,7 +531,8 @@ HKDF( ikm  = X25519(<b>both sides' ephemeral keys</b>)      &rarr; forward secre
   <p class="section__lead">
     Four languages, light and dark, list or grid. The one place saturated colour
     appears is the throughput trace, where hue encodes actual speed — so you can
-    see a Wi-Fi dip and its recovery rather than a smoothed average.
+    see a Wi-Fi dip and its recovery rather than a smoothed average. The list
+    outlives the app, and any transfer on it opens file by file.
   </p>
 
   <div class="gallery">
@@ -501,8 +541,18 @@ HKDF( ikm  = X25519(<b>both sides' ephemeral keys</b>)      &rarr; forward secre
       <figcaption>Light or dark, following the system or pinned</figcaption>
     </figure>
     <figure>
+      <img src="screenshots/transfer-detail.png" width="1180" height="900" loading="lazy"
+           alt="A transfer opened file by file, each with its own state">
+      <figcaption>Any transfer, file by file — and where each one landed</figcaption>
+    </figure>
+    <figure>
       <img src="screenshots/grid-view.png" width="1180" height="860" loading="lazy" alt="Transfers shown as an adaptive grid">
       <figcaption>Transfers as a list or an adaptive grid</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/advanced.png" width="1180" height="940" loading="lazy"
+           alt="The advanced panel with direct connection and a setup guide">
+      <figcaption>When there is no network, the steps depend on what you have</figcaption>
     </figure>
     <figure>
       <img src="screenshots/pairing.png" width="1180" height="760" loading="lazy" alt="Pairing dialog showing a six-digit code">

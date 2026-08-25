@@ -27,6 +27,7 @@ to the other.
 - **Fast** — parallel TCP streams and raw byte framing. 465 MiB/s over loopback, far past what any Wi-Fi link can carry.
 - **Encrypted** — TLS 1.3 on every connection, with forward secrecy. There is no unencrypted mode.
 - **Nothing to configure** — devices appear by themselves. No accounts, no server, no ports to forward.
+- **No router required** — one network is the whole requirement, and a phone hotspot is one. Nothing travels over mobile data, and nothing travels over the internet.
 - **Zero dependencies** — the entire app is Node's standard library. `npm ls` is empty.
 
 ## Download
@@ -62,6 +63,10 @@ device.
 
 ## First run
 
+Both devices have to be on the same network. That can be the Wi-Fi you are
+already on, or a hotspot from either phone — mobile data can stay off, because
+what two devices on a hotspot send each other never leaves it.
+
 1. Start FlyShare on both devices. Each shows up in the other's list within a few seconds.
 2. Click the new device. A six-digit code appears.
 3. Check that **the other screen shows the same code**, then confirm there.
@@ -81,6 +86,10 @@ If the two codes differ, do not confirm — something is sitting between you.
 <tr>
 <td width="50%"><img src="docs/screenshots/main-light.png" alt="Light theme"><br><em>Light or dark, following the system or pinned</em></td>
 <td width="50%"><img src="docs/screenshots/grid-view.png" alt="Grid layout"><br><em>Transfers as a list or an adaptive grid</em></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/transfer-detail.png" alt="A transfer opened file by file"><br><em>Any transfer, file by file — and where each one landed</em></td>
+<td width="50%"><img src="docs/screenshots/advanced.png" alt="Direct connection and the setup guide"><br><em>No network? The steps depend on what the two devices are</em></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/screenshots/settings.png" alt="Settings panel"><br><em>English, German, Ukrainian and Polish; folder picker; stream count; paired devices</em></td>
