@@ -119,6 +119,11 @@ async function injectIntoNode() {
   if (isWindows) await stripWindowsSignature();
   if (isMac) await run('codesign', ['--remove-signature', OUTPUT]).catch(() => {});
 
+  // Before the blob, not after: this rewrites the resource section and moves
+  // everything past it, which is exactly what postject's sentinel must be the
+  // last thing to touch.
+  if (isWindows) await setWindowsIcon();
+
   const postject = path.join(ROOT, 'node_modules', 'postject', 'dist', 'cli.js');
   const args = [postject, OUTPUT, 'NODE_SEA_BLOB', path.join(BUILD, 'flyshare.blob'),
     '--sentinel-fuse', SENTINEL];
@@ -132,6 +137,42 @@ async function injectIntoNode() {
     await run('codesign', ['--sign', '-', '--force', OUTPUT]);
     console.log('  signed ad-hoc for macOS');
   }
+}
+
+/**
+ * Give the executable its own face.
+ *
+ * Without this it inherits Node's, because that is literally what it is — a
+ * copy of node.exe with a blob inside. The icon is the first thing anyone sees
+ * of this app, in a downloads folder next to a dozen other files, and Node's
+ * hexagon there says "a script someone renamed".
+ *
+ * The version fields come along for the ride: they are what Windows shows in
+ * the file's Properties and in the SmartScreen prompt, where "unknown
+ * publisher, FlyShare" reads better than "unknown publisher, Node.js".
+ */
+async function setWindowsIcon() {
+  const icon = path.join(ROOT, 'assets', 'flyshare.ico');
+  if (!(await fs.stat(icon).catch(() => null))) {
+    console.log('  warning: assets/flyshare.ico is missing — run scripts/make-icon.js');
+    return;
+  }
+
+  const version = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
+  const { rcedit } = await import('rcedit');
+  await rcedit(OUTPUT, {
+    icon,
+    'file-version': `${version}.0`,
+    'product-version': `${version}.0`,
+    'version-string': {
+      ProductName: 'FlyShare',
+      FileDescription: 'FlyShare — file transfer over the local network',
+      CompanyName: 'FlyShare',
+      LegalCopyright: 'MIT licensed',
+      OriginalFilename: path.basename(OUTPUT),
+    },
+  });
+  console.log('  set the icon and version fields');
 }
 
 async function stripWindowsSignature() {

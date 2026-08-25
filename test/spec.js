@@ -214,5 +214,47 @@ console.log('\nframing (§5):');
   }
 }
 
+/* --- one mark, four copies of it --------------------------------------------
+ *
+ * The same four points are written out in the desktop stylesheet, in an
+ * Android vector drawable, and in the icon generator. Nothing stops three of
+ * them from moving while the fourth stays, and the failure is silent: the app
+ * simply stops looking like itself in one place nobody opens often.
+ *
+ * So the numbers are compared where they can be, and the committed .ico is
+ * checked against what the generator produces now — a generator that is
+ * deterministic, so a difference means the file is stale. */
+console.log('\nthe mark:\n');
+{
+  const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+
+  const css = read('ui/app.css').match(/clip-path:\s*polygon\(([^)]+)\)/);
+  check(Boolean(css), 'the mark is still a clip-path in ui/app.css');
+
+  const generator = read('scripts/make-icon.js').match(/const MARK = (\[[\s\S]*?\]);/);
+  check(Boolean(generator), 'and a point list in scripts/make-icon.js');
+
+  if (css && generator) {
+    const fromCss = css[1].split(',').map((pair) => pair.trim().split(/\s+/)
+      .map((n) => Number(n.replace('%', '')) / 100));
+    const fromGenerator = JSON.parse(generator[1]);
+    check(
+      JSON.stringify(fromCss) === JSON.stringify(fromGenerator),
+      'the icon is drawn from the same points the interface uses',
+      `${JSON.stringify(fromCss)} vs ${JSON.stringify(fromGenerator)}`,
+    );
+  }
+
+  const android = read('android/app/src/main/res/drawable/ic_launcher_foreground.xml')
+    .match(/pathData="([^"]+)"/);
+  const splash = read('android/app/src/main/res/drawable/splash_mark.xml')
+    .match(/pathData="([^"]+)"/);
+  check(
+    Boolean(android) && android?.[1] === splash?.[1],
+    'the launcher icon and the splash draw the same path',
+    `${android?.[1]} vs ${splash?.[1]}`,
+  );
+}
+
 console.log(failures === 0 ? '\nSpec matches the implementation.' : `\n${failures} mismatch(es).`);
 process.exit(failures === 0 ? 0 : 1);

@@ -16,7 +16,8 @@
     "test:pairing": "node test/pairing.js",
     "build": "node scripts/build.js",
     "screenshots": "node scripts/screenshots.js http://127.0.0.1:45890/",
-    "test:spec": "node test/spec.js"
+    "test:spec": "node test/spec.js",
+    "icon": "node scripts/make-icon.js"
   },
   "engines": {
     "node": ">=20"
@@ -24,6 +25,7 @@
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.28.2",
-    "postject": "^1.0.0-alpha.6"
+    "postject": "^1.0.0-alpha.6",
+    "rcedit": "^5.0.2"
   }
 }
