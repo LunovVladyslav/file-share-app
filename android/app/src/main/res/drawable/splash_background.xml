@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the phone shows between the tap and the first frame Compose draws.
+  Nothing is loading behind it — the app is 3.5 MB and starts immediately —
+  so this is not a progress screen, it is the absence of a flash.
+
+  Before this the theme set no window background at all, which meant a white
+  rectangle appeared on a dark phone and was then painted over. Short, but the
+  eye catches it every single launch.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_paper" />
+    <item
+        android:width="96dp"
+        android:height="96dp"
+        android:gravity="center"
+        android:drawable="@drawable/splash_mark" />
+</layer-list>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Vector only, no generated bitmaps. The minimum SDK is 26, which is the
+  version adaptive icons arrived in, so there is no device left that would
+  need a legacy PNG fallback — every launcher masks these two layers itself.
+
+  The monochrome layer reuses the foreground: the system reads only its alpha
+  and tints the shape, and the mark is a solid silhouette either way.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

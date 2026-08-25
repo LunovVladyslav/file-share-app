@@ -29,6 +29,7 @@
     <application
         android:name="com.lunov.flyshare.android.FlyShareApp"
         android:label="FlyShare"
+        android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.FlyShare">
         <!-- Fully qualified rather than a leading dot. A dot resolves against

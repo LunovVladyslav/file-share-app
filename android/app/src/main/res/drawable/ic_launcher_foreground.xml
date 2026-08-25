@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The mark, in the same geometry the desktop draws it.
+
+  On the desktop this is a clip-path on a 16x16 box:
+      polygon(50% 6%, 96% 92%, 50% 68%, 4% 92%)
+  Here it is the same four points on the 108-unit adaptive-icon canvas, scaled
+  to a 50-unit box centred at (54, 54) — which keeps every corner inside the
+  33-unit radius a circular launcher mask leaves visible. Change one and the
+  phone stops looking like the app it pairs with.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,32.5 L77,75.5 L54,63.5 L31,75.5 Z" />
+</vector>

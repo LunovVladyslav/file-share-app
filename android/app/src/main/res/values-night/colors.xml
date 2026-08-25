@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark paper, and the lighter signal that goes with it — the same pair
+  Theme.kt uses for the dark palette. Without this the window flashes a pale
+  rectangle before the app draws its own dark background over it.
+-->
+<resources>
+    <color name="splash_paper">#FF0B1119</color>
+    <color name="splash_mark">#FF6C8DFF</color>
+</resources>

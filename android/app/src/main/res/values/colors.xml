@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The three colours the system needs before Compose is running, and therefore
+  before Theme.kt exists. They are copies of the palette there — paper and
+  signal — because resource XML cannot read Kotlin. Change one and change both.
+-->
+<resources>
+    <!-- The launcher icon does not follow the phone's theme: an app that
+         changes colour in the drawer is an app people stop finding. -->
+    <color name="ic_launcher_background">#FF1F4FE0</color>
+
+    <color name="splash_paper">#FFE8ECF1</color>
+    <color name="splash_mark">#FF1F4FE0</color>
+</resources>

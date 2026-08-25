@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The same mark for the starting window, where it sits on paper rather than on
+  the brand blue — so it takes the signal colour instead of white, and follows
+  light and dark like everything else does.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/splash_mark"
+        android:pathData="M54,32.5 L77,75.5 L54,63.5 L31,75.5 Z" />
+</vector>

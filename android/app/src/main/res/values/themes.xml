@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.FlyShare" parent="android:Theme.Material.NoActionBar" />
+    <!--
+      Android 8 through 11. The starting window is whatever windowBackground
+      says, so the mark on paper is drawn by the system before a single line of
+      the app has run — and stays behind the content afterwards, where Compose
+      covers it with the same colour.
+    -->
+    <style name="Theme.FlyShare" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
 </resources>

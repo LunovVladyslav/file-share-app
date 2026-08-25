@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Android 12 and up show a splash screen whether or not an app asks for
+      one. Not configuring it does not remove it — it just means the system
+      picks the colours, and picks them wrong. These two attributes make the
+      one it was always going to show look like this app.
+
+      The window background goes back to a flat colour here: the system draws
+      the mark itself, and a second copy underneath would appear again for a
+      frame as the splash lifts.
+    -->
+    <style name="Theme.FlyShare" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/splash_paper</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_paper</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
+    </style>
+</resources>
