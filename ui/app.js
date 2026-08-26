@@ -178,8 +178,9 @@ function when(millis) {
 }
 
 const TONE = { completed: 'is-ok', failed: 'is-err' };
-const ACTIVE = new Set(['connecting', 'waiting', 'sending', 'receiving', 'finalizing']);
+const ACTIVE = new Set(['scanning', 'connecting', 'waiting', 'sending', 'receiving', 'finalizing']);
 const BROKEN = new Set(['failed', 'declined', 'cancelled']);
+const FINISHED = new Set([...BROKEN, 'completed']);
 
 // --- preferences ---------------------------------------------------------
 
@@ -297,11 +298,18 @@ function selectedPeer() {
   return (state.peers ?? []).find((p) => p.id === selectedPeerId) ?? null;
 }
 
+// Set while a dropped folder is being walked. The browser hands over entries
+// one at a time and a deep folder takes seconds, during which the page would
+// otherwise sit there saying "drop files here" as though nothing happened.
+let dropCount = null;
+
 function renderDropzone() {
   const peer = selectedPeer();
-  dom.dropzoneLine.textContent = peer
-    ? t.t('drop.dropFor', { name: peer.name })
-    : t.t('drop.selectDevice');
+  dom.dropzoneLine.textContent = dropCount !== null
+    ? t.t('drop.counting', { n: dropCount })
+    : peer
+      ? t.t('drop.dropFor', { name: peer.name })
+      : t.t('drop.selectDevice');
   dom.pickFiles.disabled = !peer;
   dom.pickFolder.disabled = !peer;
   dom.dropzone.classList.toggle('is-armed', Boolean(peer));
@@ -482,7 +490,7 @@ function updateTransfer(node, transfer) {
 
   updateTrace(node, transfer, active);
 
-  const hint = slowLinkHint(transfer, traces.get(transfer.id) ?? []);
+  const hint = preparingHint(transfer) ?? slowLinkHint(transfer, traces.get(transfer.id) ?? []);
   node.hint.hidden = !hint;
   if (hint) node.hint.textContent = hint;
 
@@ -536,6 +544,17 @@ function describe(transfer) {
   };
 }
 
+/**
+ * A receiver creating tens of thousands of files reports as it goes. Without
+ * this the card sits on "waiting" with nothing moving, and a slow disk on the
+ * far side looks exactly like a device that has stopped answering.
+ */
+function preparingHint(transfer) {
+  const preparing = transfer.preparing;
+  if (!preparing || transfer.status !== 'waiting') return null;
+  return t.t('transfer.preparing', { done: preparing.prepared, total: preparing.total });
+}
+
 // Below this a modern Wi-Fi link is clearly not delivering what it could:
 // ~100 Mbit/s, well under 5 GHz and under gigabit Ethernet.
 const SLOW_LINK = 12 * 1024 * 1024;
@@ -576,9 +595,14 @@ function renderActions(container, transfer) {
   // on the current state — so the paused flag is part of the identity of this
   // set of controls, not just of their labels.
   const canPause = transfer.direction === 'out' && transfer.canPause;
+  // Anything that is over can be taken off the list one card at a time.
+  // "Clear the list" is all of them or none, which is no use to someone who
+  // wants the one failed attempt gone and the rest kept.
+  const over = FINISHED.has(transfer.status);
   const wanted = transfer.status === 'pending' ? 'decide'
     : ACTIVE.has(transfer.status) ? (canPause ? `cancel:${transfer.paused ? 'resume' : 'pause'}` : 'cancel')
-      : transfer.status === 'completed' && transfer.direction === 'in' ? 'reveal' : 'none';
+      : transfer.status === 'completed' && transfer.direction === 'in' ? 'reveal:dismiss'
+        : over ? 'dismiss' : 'none';
 
   const kind = `${transfer.id}:${wanted}`;
   if (container.dataset.kind === kind) return;
@@ -602,7 +626,7 @@ function renderActions(container, transfer) {
     }
     container.append(button(t.t('action.cancel'), 'button button--quiet',
       () => api('/api/cancel', { transferId: transfer.id })));
-  } else if (wanted === 'reveal') {
+  } else if (wanted.startsWith('reveal')) {
     container.append(button(t.t('action.reveal'), 'button button--quiet', () => api('/api/open-folder', {
       path: transfer.destDir,
       // A single file gets highlighted; a folder of them just gets opened.
@@ -610,6 +634,11 @@ function renderActions(container, transfer) {
       // history.js — so both shapes are read here.
       select: transfer.fileCount === 1 ? (transfer.files?.[0]?.path ?? transfer.filePath ?? null) : null,
     })));
+  }
+
+  if (wanted.endsWith('dismiss')) {
+    container.append(button(t.t('action.dismiss'), 'button button--quiet',
+      () => api('/api/forget', { transferId: transfer.id })));
   }
 }
 
@@ -633,9 +662,45 @@ function button(text, className, onClick) {
 // showing rather than pretending the list is complete.
 const DETAIL_FILE_LIMIT = 500;
 
+// The file list is not in the pushed state any more — at seventy thousand
+// files it made every frame megabytes, for rows only an open drawer draws.
+// The drawer asks for them instead, and keeps asking while they change.
+const DETAIL_ROW_POLL_MS = 700;
+let detailRows = null;
+let detailRowsFor = null;
+let detailRowsTimer = null;
+
+function pullDetailRows() {
+  const id = detailId;
+  if (!id) return;
+  api('/api/transfer/files', { transferId: id })
+    .then((rows) => {
+      // The drawer may have been closed, or moved to another transfer, while
+      // this was in flight.
+      if (detailId !== id) return;
+      detailRows = rows;
+      detailRowsFor = id;
+      renderDetail();
+    })
+    .catch(() => { /* the next tick tries again */ });
+}
+
+function tickDetailRows() {
+  const transfer = (state.transfers ?? []).find((x) => x.id === detailId);
+  // Rows only move while bytes do. One that is over was read when the drawer
+  // opened and will not say anything different now.
+  if (!transfer || !ACTIVE.has(transfer.status)) return;
+  pullDetailRows();
+}
+
 function openDetail(id) {
   detailId = id;
   detailFilesFor = null;
+  detailRows = null;
+  detailRowsFor = null;
+  clearInterval(detailRowsTimer);
+  detailRowsTimer = setInterval(tickDetailRows, DETAIL_ROW_POLL_MS);
+  pullDetailRows();
   if (!dom.settings.hidden) openSettings(false);
   if (!dom.advanced.hidden) openAdvanced(false);
   renderDetail();
@@ -645,6 +710,10 @@ function closeDetail() {
   detailId = null;
   detailFilesFor = null;
   detailFileNodes.clear();
+  clearInterval(detailRowsTimer);
+  detailRowsTimer = null;
+  detailRows = null;
+  detailRowsFor = null;
   dom.detail.hidden = true;
   dom.detailActions.dataset.kind = '';
   syncOverlay();
@@ -674,21 +743,27 @@ function renderDetail() {
 }
 
 function renderDetailFiles(transfer) {
-  const files = transfer.files ?? [];
+  // Null until the first answer arrives — a moment on any transfer, and not
+  // worth a word on screen. An answer of nothing is different: that is a
+  // remembered transfer, whose list history drops on purpose.
+  const rows = detailRowsFor === transfer.id ? detailRows : null;
+  const files = rows?.files ?? [];
+  const total = rows?.total ?? 0;
   const shown = files.slice(0, DETAIL_FILE_LIMIT);
 
-  dom.detailNote.hidden = files.length > 0 && files.length <= DETAIL_FILE_LIMIT;
+  dom.detailNote.hidden = !rows || (files.length > 0 && total <= DETAIL_FILE_LIMIT);
   if (files.length === 0) {
-    // Only a remembered transfer reaches this: the file list is deliberately
-    // not stored, and the folder it landed in answers the question instead.
+    // The folder it landed in answers the question instead.
     dom.detailNote.textContent = t.t('detail.noFileList');
-  } else if (files.length > DETAIL_FILE_LIMIT) {
-    dom.detailNote.textContent = t.t('detail.more', { shown: DETAIL_FILE_LIMIT, total: files.length });
+  } else if (total > DETAIL_FILE_LIMIT) {
+    dom.detailNote.textContent = t.t('detail.more', { shown: DETAIL_FILE_LIMIT, total });
   }
 
   // Rows are built once and then updated in place. At four hundred files a
-  // rebuild three times a second is a page that cannot be scrolled.
-  if (detailFilesFor !== transfer.id) {
+  // rebuild three times a second is a page that cannot be scrolled. They are
+  // rebuilt when the rows first arrive, which is when the count changes from
+  // none to however many there are.
+  if (detailFilesFor !== transfer.id || detailFileNodes.size !== shown.length) {
     detailFilesFor = transfer.id;
     detailFileNodes.clear();
     dom.detailFiles.replaceChildren(...shown.map((file, index) => {
@@ -730,7 +805,7 @@ function buildFileRow(transfer, index) {
     const live = (state.transfers ?? []).find((x) => x.id === transfer.id);
     return api('/api/open-folder', {
       path: live?.destDir ?? null,
-      select: live?.files?.[index]?.path ?? null,
+      select: detailRows?.files?.[index]?.path ?? null,
     });
   });
   node.reveal.title = t.t('action.reveal');
@@ -1121,7 +1196,7 @@ async function sendDropped(picked) {
 }
 
 /** Walk the drop payload, keeping folder structure intact. */
-async function collectDrop(dataTransfer) {
+async function collectDrop(dataTransfer, onProgress) {
   // getAsEntry must be called before any await: the item list is torn down
   // as soon as the drop handler yields.
   const entries = [...dataTransfer.items]
@@ -1133,15 +1208,25 @@ async function collectDrop(dataTransfer) {
     return [...dataTransfer.files].map((file) => ({ file, rel: file.name }));
   }
   const out = [];
-  for (const entry of entries) await walkEntry(entry, '', out);
+  // A few times a second is enough to show movement; repainting on every one
+  // of seventy thousand files would make the counting the slow part.
+  const watch = { onProgress, last: 0 };
+  for (const entry of entries) await walkEntry(entry, '', out, watch);
   return out;
 }
 
-async function walkEntry(entry, prefix, out) {
+const DROP_REPORT_EVERY = 150;
+
+async function walkEntry(entry, prefix, out, watch) {
   const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
   if (entry.isFile) {
     const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
     out.push({ file, rel });
+    const now = Date.now();
+    if (watch.onProgress && now - watch.last >= DROP_REPORT_EVERY) {
+      watch.last = now;
+      watch.onProgress(out.length);
+    }
     return;
   }
   if (!entry.isDirectory) return;
@@ -1149,7 +1234,7 @@ async function walkEntry(entry, prefix, out) {
   for (;;) {
     const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
     if (batch.length === 0) break;
-    for (const child of batch) await walkEntry(child, rel, out);
+    for (const child of batch) await walkEntry(child, rel, out, watch);
   }
 }
 
@@ -1342,7 +1427,13 @@ window.addEventListener('drop', async (event) => {
   dragDepth = 0;
   dom.dropzone.classList.remove('is-over');
   if (!selectedPeer()) return toast(t.t('error.selectDeviceFirst'));
-  const picked = await collectDrop(event.dataTransfer);
+  let picked;
+  try {
+    picked = await collectDrop(event.dataTransfer, (n) => { dropCount = n; renderDropzone(); });
+  } finally {
+    dropCount = null;
+    renderDropzone();
+  }
   await sendDropped(picked);
 });
 

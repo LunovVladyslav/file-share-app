@@ -19,6 +19,14 @@ process.on('message', (message) => {
     case 'respond-pairing':
       server.respondToPairing(message.pairingId, message.accept);
       break;
+    case 'files':
+      // The file list left the pushed snapshot — see ui-server.js. It is
+      // asked for the same way the interface asks for it.
+      process.send({
+        type: 'files',
+        payload: server.fileRows(message.transferId, message.limit ?? 500),
+      });
+      break;
     case 'state':
       process.send({
         type: 'state',

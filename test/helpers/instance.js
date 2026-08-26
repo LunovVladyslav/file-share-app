@@ -91,6 +91,13 @@ export function startReceiver(home, port) {
       events.splice(events.indexOf(reply), 1);
       return reply.payload;
     },
+    /** The rows the detail drawer would draw for one transfer. */
+    async files(transferId, limit = 500) {
+      handle.send({ cmd: 'files', transferId, limit });
+      const reply = await handle.waitFor((m) => m.type === 'files', 5000, 'files');
+      events.splice(events.indexOf(reply), 1);
+      return reply.payload;
+    },
     stop() {
       child.kill();
     },

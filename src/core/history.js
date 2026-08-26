@@ -81,6 +81,20 @@ export function clear() {
   persist();
 }
 
+/**
+ * Forget one transfer. The list on screen is the live transfers and the
+ * remembered ones together, so taking a single card off it means both halves
+ * — this is the half that would otherwise come straight back on the next
+ * frame.
+ */
+export function forget(id) {
+  const before = load().length;
+  cache = cache.filter((e) => e.id !== id);
+  if (cache.length === before) return false;
+  persist();
+  return true;
+}
+
 function reduce(t) {
   return {
     id: t.id,
@@ -98,8 +112,11 @@ function reduce(t) {
     // keeping when there is exactly one file, because that is the case where
     // pointing at the file beats pointing at the folder. Two strings are not
     // a file list.
-    firstFile: t.files?.[0]?.rel ?? null,
-    filePath: t.fileCount === 1 ? (t.files?.[0]?.path ?? null) : null,
+    // A live snapshot carries these two directly now; the older shape, with
+    // the whole list, is still read so a record written by any version of
+    // this app comes back the same.
+    firstFile: t.firstFile ?? t.files?.[0]?.rel ?? null,
+    filePath: t.filePath ?? (t.fileCount === 1 ? (t.files?.[0]?.path ?? null) : null),
     startedAt: t.startedAt ?? null,
     // A transfer that failed never set this, and "when did this happen" has to
     // be answerable for those too. It ended now, because that is when the

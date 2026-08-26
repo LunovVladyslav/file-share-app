@@ -1,6 +1,6 @@
 {
   "name": "flyshare",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Fast cross-platform file transfer over local Wi-Fi (Windows / macOS / Linux / Android)",
   "type": "module",
   "main": "src/main.js",
@@ -10,9 +10,10 @@
   "scripts": {
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
-    "test": "node test/spec.js && node test/pairing.js && node test/protocol.js && node test/discovery.js && node test/history.js && node test/e2e.js",
+    "test": "node test/spec.js && node test/pairing.js && node test/protocol.js && node test/manifest.js && node test/discovery.js && node test/history.js && node test/e2e.js",
     "test:e2e": "node test/e2e.js",
     "test:protocol": "node test/protocol.js",
+    "test:manifest": "node test/manifest.js",
     "test:pairing": "node test/pairing.js",
     "build": "node scripts/build.js",
     "screenshots": "node scripts/screenshots.js http://127.0.0.1:45890/",

@@ -146,7 +146,13 @@ async function main() {
   // from. The totals agreeing proves nothing here: a sender that credited
   // every byte to the first file would still add up to the right number, and
   // would draw one full bar and four hundred empty ones.
-  for (const [side, files] of [['sender', outgoing?.files ?? []], ['receiver', result.files ?? []]]) {
+  // Asked for rather than read off the snapshot: the list is no longer pushed
+  // with the rest of the state, because at seventy thousand files it made
+  // every frame megabytes. This is the same call the drawer makes.
+  const senderRows = sender.fileRows(result.id, 1000)?.files ?? [];
+  const receiverRows = (await receiver.files(result.id, 1000))?.files ?? [];
+
+  for (const [side, files] of [['sender', senderRows], ['receiver', receiverRows]]) {
     check(files.length === sourceHashes.size, `the ${side} accounts for every file`,
       `${files.length} of ${sourceHashes.size}`);
     const short = files.filter((f) => (f.received ?? 0) !== f.size);

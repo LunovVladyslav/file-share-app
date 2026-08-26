@@ -49,6 +49,12 @@ function defaults() {
     readBufferSize: 1024 * 1024,
     autoAccept: false,
 
+    // How much of a frame the file list of an offer may fill before it has to
+    // be split into pages. Null means the protocol's own ceiling, which is
+    // what everything outside the tests wants; the tests shrink it so the
+    // paged path can be reached without a manifest of real megabytes.
+    manifestBudget: null,
+
     // Interface preferences live here rather than in the browser, so they
     // follow the device instead of whichever browser profile opened the UI.
     language: 'auto',      // auto | en | de | uk | pl

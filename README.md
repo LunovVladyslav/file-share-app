@@ -340,6 +340,7 @@ share, which is exactly what is missing in that situation; Linux will.
 - Permissions and timestamps are not carried over.
 - A transfer can be paused and continued while both apps stay open; an interrupted one — app killed, network gone — cannot be resumed and starts again.
 - Protocol v2 is deliberately incompatible with v1, so an old unencrypted client gets a clear refusal rather than a silent downgrade.
+- A drop of tens of thousands of files is sent as a file list split across frames. A device on an older build — the Android app included — cannot read one, and is refused before anything is sent rather than losing the connection halfway through.
 - The interface needs a current browser (it uses `light-dark()` and `color-mix()`).
 - On Android, a transfer runs while the app is open or in the background, but not after the system stops the process; and Android refuses to hand out the storage root or `Download` itself as a destination, so choosing a folder means picking one inside them.
 

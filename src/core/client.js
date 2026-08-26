@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { PROTOCOL_VERSION, loadConfig, platformLabel } from './config.js';
-import { encodeFrame, readFrames, readFirstFrame } from './protocol.js';
+import {
+  encodeFrame, readFrames, readFirstFrame,
+  pageManifest, peerSupports, CAPABILITIES, MANIFEST_PAGES,
+} from './protocol.js';
 import { buildManifest } from './manifest.js';
 import { peerPublicKey } from './trust.js';
 import { initiatePairing } from './pairing.js';
@@ -78,13 +81,33 @@ export class Sender extends EventEmitter {
   /** Send files/folders that exist on this machine's disk. */
   async sendPaths(peer, paths) {
     requirePaired(peer);
-    const manifest = await buildManifest(paths);
-    if (manifest.files.length === 0) throw new Error('nothing to send');
 
-    const session = new SendSession(this, peer, manifest);
+    // The session is put on the list before the folder has been walked, so a
+    // drop of seventy thousand files shows a card that counts them rather
+    // than several seconds of a window that looks stuck.
+    const session = new SendSession(this, peer, { files: [], totalSize: 0 });
+    session.beginScan();
     this.#sessions.set(session.id, session);
     this.emit('transfer', session.snapshot());
 
+    const manifest = await buildManifest(paths, {
+      onProgress: (found) => session.scanProgress(found),
+      stopped: () => session.cancelled,
+    });
+
+    // Cancelled while counting. The card says so and stays until it is
+    // dismissed, the same as any other transfer that ended early.
+    if (manifest.stopped) return session.snapshot();
+
+    if (manifest.files.length === 0) {
+      this.#sessions.delete(session.id);
+      // The payload is beside the point: this is how the interface is told to
+      // look at the list again, and the card is no longer in it.
+      this.notifyChange(session);
+      throw new Error('nothing to send');
+    }
+
+    session.setManifest(manifest);
     session.run().catch(() => { /* status already reflects the failure */ });
     return session.snapshot();
   }
@@ -138,6 +161,13 @@ export class Sender extends EventEmitter {
     return true;
   }
 
+  /** The first `limit` file rows of one transfer, for the detail drawer. */
+  fileRows(transferId, limit) {
+    const session = this.#sessions.get(transferId);
+    if (!session) return null;
+    return { total: session.files.length, files: session.fileRows(limit) };
+  }
+
   /** Drop a finished session from the live list; history keeps the record. */
   forget(transferId) {
     const session = this.#sessions.get(transferId);
@@ -174,12 +204,42 @@ class SendSession {
     this.totalSize = manifest.totalSize;
     this.sent = 0;
     this.status = 'connecting';
+    this.preparing = null;
+    this.scanning = null;
     this.error = null;
     this.createdAt = Date.now();
     this.startedAt = null;
     this.finishedAt = null;
     this.speed = new SpeedMeter();
     this.streams = clamp(this.config.streams, 1, 16);
+  }
+
+  /**
+   * A session exists before its manifest does. These three carry it from
+   * "counting files" to "ready to connect" without the card ever leaving the
+   * list or changing shape.
+   */
+  beginScan() {
+    this.scanning = { files: 0, bytes: 0, first: null };
+    this.status = 'scanning';
+  }
+
+  scanProgress(found) {
+    if (!this.scanning) return;
+    this.scanning = found;
+    this.sender.notifyChange(this);
+  }
+
+  setManifest(manifest) {
+    this.files = manifest.files;
+    this.totalSize = manifest.totalSize;
+    this.scanning = null;
+    this.#setStatus('connecting');
+  }
+
+  /** Asked by the walk between entries, so cancelling actually stops it. */
+  get cancelled() {
+    return this.#cancelled;
   }
 
   /** Connect, offer the manifest, and wait for the far side to say yes. */
@@ -195,19 +255,7 @@ class SendSession {
     });
 
     this.#setStatus('waiting');
-    socket.write(encodeFrame({
-      t: 'offer',
-      ver: PROTOCOL_VERSION,
-      transferId: this.id,
-      from: {
-        id: this.config.deviceId,
-        name: this.config.deviceName,
-        os: platformLabel(),
-      },
-      files: this.files.map((f) => ({ rel: f.rel, size: f.size })),
-      totalSize: this.totalSize,
-      streams: this.streams,
-    }));
+    this.#sendOffer(socket);
 
     this.#donePromise = new Promise((resolve) => { this.#doneResolve = resolve; });
     // The waiter is registered before the reader starts delivering, so no
@@ -225,6 +273,54 @@ class SendSession {
     this.startedAt = Date.now();
     this.#setStatus('sending');
     return this;
+  }
+
+  /**
+   * Put the manifest on the wire. It rides inside the offer frame, as it
+   * always has, unless it is too big for one — then the offer says so and the
+   * file list follows as a run of pages. Only a peer that announced it reads
+   * them ever gets sent one.
+   */
+  #sendOffer(socket) {
+    const head = {
+      t: 'offer',
+      ver: PROTOCOL_VERSION,
+      transferId: this.id,
+      from: {
+        id: this.config.deviceId,
+        name: this.config.deviceName,
+        os: platformLabel(),
+      },
+      totalSize: this.totalSize,
+      streams: this.streams,
+    };
+
+    const pages = pageManifest(this.files, this.config.manifestBudget);
+    if (pages.length <= 1) {
+      socket.write(encodeFrame({ ...head, files: pages[0] ?? [] }));
+      return;
+    }
+
+    if (!peerSupports(socket, MANIFEST_PAGES)) {
+      // Writing it anyway would be the worse failure: the far side reads the
+      // length prefix, drops the connection before the first entry, and the
+      // person is told the link died when the truth is the drop was too big
+      // for the build at the other end.
+      const reason = `${this.peer.name} runs a version that takes at most about `
+        + `${pages[0].length} files in one transfer, and this one has ${this.files.length}. `
+        + `Send them in smaller batches, or update that device.`;
+      // open() has a caller that does not run the transfer loop, so the
+      // failure is recorded here rather than left to whoever catches it.
+      this.#setStatus('failed', reason);
+      this.#teardown();
+      throw new Error(reason);
+    }
+
+    socket.write(encodeFrame({ ...head, files: [], paged: true, fileCount: this.files.length }));
+    for (const files of pages) {
+      socket.write(encodeFrame({ t: 'offer-files', transferId: this.id, files }));
+    }
+    socket.write(encodeFrame({ t: 'offer-end', transferId: this.id }));
   }
 
   /** Full disk-to-disk run: offer, then saturate the link with parallel streams. */
@@ -445,8 +541,31 @@ class SendSession {
     } else if (frame.t === 'error') {
       this.#setStatus('failed', frame.reason ?? 'receiver reported an error');
       this.#teardown();
+    } else if (frame.t === 'offer-progress') {
+      // Creating tens of thousands of empty files takes real time on the far
+      // side. Each report is proof of life and pushes the deadline back, so
+      // the wait does not have to be long enough to cover the slowest disk
+      // anyone might ever receive onto.
+      this.preparing = { prepared: frame.prepared ?? 0, total: frame.total ?? this.files.length };
+      this.#pending?.get('offer-result')?.refresh();
+      this.sender.notifyChange(this);
     }
-    this.#pending?.get(frame.t)?.(frame);
+    this.#pending?.get(frame.t)?.deliver(frame);
+  }
+
+  /**
+   * Wait for one frame by type. The deadline can be pushed back through
+   * `refresh`, which is how a receiver that is still preparing keeps the wait
+   * alive without the timeout having to assume the worst case up front.
+   */
+  /**
+   * The rows the detail drawer draws, and nothing past them. `received` on
+   * both sides of the wire: the interface draws one bar per file and should
+   * not have to know which end of the transfer it is looking at.
+   */
+  fileRows(limit) {
+    return this.files.slice(0, limit)
+      .map((f) => ({ rel: f.rel, size: f.size, received: f.sent ?? 0, path: null }));
   }
 
   #waitFor(type, timeoutMs) {
@@ -455,10 +574,13 @@ class SendSession {
         this.#pending.delete(type);
         reject(new Error(`timed out waiting for ${type}`));
       }, timeoutMs);
-      this.#pending.set(type, (frame) => {
-        clearTimeout(timer);
-        this.#pending.delete(type);
-        resolve(frame);
+      this.#pending.set(type, {
+        deliver: (frame) => {
+          clearTimeout(timer);
+          this.#pending.delete(type);
+          resolve(frame);
+        },
+        refresh: () => timer.refresh(),
       });
     });
   }
@@ -479,12 +601,18 @@ class SendSession {
       paused: this.paused,
       canPause: this.canPause,
       error: this.error,
-      totalSize: this.totalSize,
+      // While the folder is still being walked these are what has been found
+      // so far, which is the whole point of showing the card that early.
+      totalSize: this.scanning ? this.scanning.bytes : this.totalSize,
       received: this.sent,
-      fileCount: this.files.length,
-      // `received` on both sides of the wire: the interface draws one bar per
-      // file and should not have to know which end of the transfer it is on.
-      files: this.files.map((f) => ({ rel: f.rel, size: f.size, received: f.sent ?? 0 })),
+      fileCount: this.scanning ? this.scanning.files : this.files.length,
+      preparing: this.preparing,
+      // Two strings rather than the list — the same trade history.js makes,
+      // and for the same reason. At seventy thousand files that list is five
+      // megabytes of JSON, and this snapshot goes to the interface three
+      // times a second while anything is moving. The drawer asks separately
+      // for the few hundred rows it actually draws.
+      firstFile: this.files[0]?.rel ?? this.scanning?.first ?? null,
       speed: this.speed.bytesPerSecond,
       security: this.security ?? null,
       streams: this.streams,
@@ -530,6 +658,7 @@ export async function connectSecure(peer) {
     ver: PROTOCOL_VERSION,
     deviceId: config.deviceId,
     ephPub: ephemeral.publicRaw,
+    caps: CAPABILITIES,
   }));
 
   const { frame } = await readFirstFrame(socket, 20000);
@@ -553,7 +682,11 @@ export async function connectSecure(peer) {
     selfId: config.deviceId,
     peerId: peer.id,
   });
-  return secureClient(socket, psk);
+  const secure = await secureClient(socket, psk);
+  // Kept on the socket because everything downstream that needs to know what
+  // this peer understands — the offer, and nothing else — already holds it.
+  secure.peerCaps = Array.isArray(frame.caps) ? frame.caps : [];
+  return secure;
 }
 
 function connect(host, port) {

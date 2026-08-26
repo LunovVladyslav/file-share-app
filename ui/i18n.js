@@ -31,6 +31,7 @@ const STRINGS = {
     'drop.pickFiles': 'Choose files',
     'drop.pickFolder': 'Choose folder',
     'drop.hint': 'Dragging works too — straight from Explorer or Finder.',
+    'drop.counting': 'Counting files — {n} so far',
 
     'transfers.heading': 'Transfers',
     'transfers.openFolder': 'Open downloads folder',
@@ -38,6 +39,7 @@ const STRINGS = {
     'transfers.empty': 'Transfers will show up here — both the ones you send and the ones you receive.',
 
     'status.pending': 'Request',
+    'status.scanning': 'Counting files',
     'status.connecting': 'Connecting',
     'status.waiting': 'Awaiting consent',
     'status.sending': 'Sending',
@@ -56,6 +58,7 @@ const STRINGS = {
     'action.resume': 'Resume',
     'action.reveal': 'Show in folder',
     'action.revealFile': 'Show',
+    'action.dismiss': 'Remove',
 
     'transfer.to': 'to',
     'transfer.from': 'from',
@@ -185,6 +188,8 @@ const STRINGS = {
     'transfer.slowLink': 'Slower than this Wi-Fi should manage. Both devices on '
       + 'the 5 GHz band and near the router usually fixes it; more parallel '
       + 'streams can help too.',
+    'transfer.preparing': 'The other device is making room for the files — '
+      + '{done} of {total} ready.',
   },
 
   de: {
@@ -202,6 +207,7 @@ const STRINGS = {
     'drop.selectDevice': 'Wähle ein Gerät zum Senden',
     'drop.dropFor': 'Dateien für „{name}“ hier ablegen',
     'drop.pickFiles': 'Dateien wählen',
+    'drop.counting': 'Zähle Dateien — bisher {n}',
     'drop.pickFolder': 'Ordner wählen',
     'drop.hint': 'Ziehen funktioniert auch — direkt aus Explorer oder Finder.',
 
@@ -211,6 +217,7 @@ const STRINGS = {
     'transfers.empty': 'Hier erscheinen Übertragungen — gesendete wie empfangene.',
 
     'status.pending': 'Anfrage',
+    'status.scanning': 'Zähle Dateien',
     'status.connecting': 'Verbinde',
     'status.waiting': 'Warte auf Zustimmung',
     'status.sending': 'Sende',
@@ -229,6 +236,7 @@ const STRINGS = {
     'action.resume': 'Fortsetzen',
     'action.reveal': 'Im Ordner zeigen',
     'action.revealFile': 'Zeigen',
+    'action.dismiss': 'Entfernen',
 
     'transfer.to': 'an',
     'transfer.from': 'von',
@@ -358,6 +366,8 @@ const STRINGS = {
     'transfer.slowLink': 'Langsamer, als dieses WLAN können sollte. Meist hilft '
       + 'es, beide Geräte ins 5-GHz-Band und näher an den Router zu bringen; '
       + 'mehr parallele Verbindungen können auch helfen.',
+    'transfer.preparing': 'Das andere Gerät legt die Dateien an — '
+      + '{done} von {total} fertig.',
   },
 
   uk: {
@@ -375,6 +385,7 @@ const STRINGS = {
     'drop.selectDevice': 'Оберіть пристрій, щоб надіслати файли',
     'drop.dropFor': 'Перетягніть файли для «{name}»',
     'drop.pickFiles': 'Обрати файли',
+    'drop.counting': 'Рахую файли — поки {n}',
     'drop.pickFolder': 'Обрати папку',
     'drop.hint': 'Перетягування працює теж — з Провідника або Finder.',
 
@@ -384,6 +395,7 @@ const STRINGS = {
     'transfers.empty': 'Тут з’являться передачі — і ті, що надсилаєте ви, і вхідні.',
 
     'status.pending': 'Запит',
+    'status.scanning': 'Рахую файли',
     'status.connecting': 'З’єднання',
     'status.waiting': 'Очікую згоди',
     'status.sending': 'Надсилаю',
@@ -402,6 +414,7 @@ const STRINGS = {
     'action.resume': 'Продовжити',
     'action.reveal': 'Показати в папці',
     'action.revealFile': 'Показати',
+    'action.dismiss': 'Прибрати',
 
     'transfer.to': 'до',
     'transfer.from': 'від',
@@ -531,6 +544,8 @@ const STRINGS = {
     'transfer.slowLink': 'Повільніше, ніж має давати цей Wi-Fi. Зазвичай '
       + 'допомагає перевести обидва пристрої на діапазон 5 ГГц і підійти '
       + 'ближче до роутера; іноді дає ефект більше паралельних потоків.',
+    'transfer.preparing': 'Інший пристрій готує місце для файлів — '
+      + 'готово {done} з {total}.',
   },
 
   pl: {
@@ -548,6 +563,7 @@ const STRINGS = {
     'drop.selectDevice': 'Wybierz urządzenie, aby wysłać pliki',
     'drop.dropFor': 'Przeciągnij pliki dla „{name}”',
     'drop.pickFiles': 'Wybierz pliki',
+    'drop.counting': 'Liczę pliki — na razie {n}',
     'drop.pickFolder': 'Wybierz folder',
     'drop.hint': 'Przeciąganie też działa — prosto z Eksploratora lub Findera.',
 
@@ -557,6 +573,7 @@ const STRINGS = {
     'transfers.empty': 'Tutaj pojawią się transfery — wysyłane i odbierane.',
 
     'status.pending': 'Prośba',
+    'status.scanning': 'Liczę pliki',
     'status.connecting': 'Łączenie',
     'status.waiting': 'Czekam na zgodę',
     'status.sending': 'Wysyłanie',
@@ -575,6 +592,7 @@ const STRINGS = {
     'action.resume': 'Wznów',
     'action.reveal': 'Pokaż w folderze',
     'action.revealFile': 'Pokaż',
+    'action.dismiss': 'Usuń',
 
     'transfer.to': 'do',
     'transfer.from': 'od',
@@ -703,6 +721,8 @@ const STRINGS = {
     'transfer.slowLink': 'Wolniej, niż to Wi-Fi powinno dawać. Zwykle pomaga '
       + 'przeniesienie obu urządzeń na pasmo 5 GHz i zbliżenie ich do routera; '
       + 'czasem pomaga też więcej równoległych strumieni.',
+    'transfer.preparing': 'Drugie urządzenie przygotowuje miejsce na pliki — '
+      + 'gotowe {done} z {total}.',
   },
 };
 

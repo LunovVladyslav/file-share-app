@@ -5,7 +5,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { TRANSFER_PORT, PROTOCOL_VERSION, loadConfig } from './config.js';
-import { encodeFrame, readFrames, readFirstFrame, MAX_FRAME } from './protocol.js';
+import {
+  encodeFrame, readFirstFrame, FrameChannel, MAX_FRAME, CAPABILITIES,
+} from './protocol.js';
 import { safeJoin, uniquePath, sanitizeSegment } from './manifest.js';
 import { peerPublicKey, refreshPeerName } from './trust.js';
 import { noteContact } from './presence.js';
@@ -16,6 +18,17 @@ import { SpeedMeter } from '../util/speed.js';
 
 const HEADER = 0;
 const BODY = 1;
+
+// A manifest larger than one frame arrives as pages. These bound what a peer
+// can make this device hold and how long it may take over saying it.
+const MAX_MANIFEST_FILES = 500000;
+const MANIFEST_PAGE_TIMEOUT = 60000;
+
+// Preallocation is round trips, not computation — the number is chosen for
+// disk and virus-scanner latency rather than for cores.
+const PREPARE_CONCURRENCY = 32;
+const PREPARE_REPORT_FROM = 2000;
+const PREPARE_REPORT_EVERY = 1000;
 
 /**
  * Receiving side.
@@ -131,6 +144,7 @@ export class TransferServer extends EventEmitter {
       t: 'session-ok',
       deviceId: config.deviceId,
       ephPub: ephemeral.publicRaw,
+      caps: CAPABILITIES,
     }));
 
     let secure;
@@ -166,15 +180,30 @@ export class TransferServer extends EventEmitter {
   }
 
   async #handleOffer(socket, offer, leftover, identity) {
+    // One reader for the whole control connection, attached before anything is
+    // awaited: the pages of a large manifest arrive immediately behind the
+    // offer, and whatever follows them has to be queued rather than missed.
+    const channel = new FrameChannel(socket, leftover);
+
+    let manifest = offer;
+    if (offer.paged) {
+      try {
+        manifest = { ...offer, files: await collectManifestPages(channel, offer) };
+      } catch (err) {
+        channel.write({ t: 'offer-result', accept: false, reason: `manifest: ${err.message}` });
+        return socket.end();
+      }
+    }
+
     // The sender's claimed name is only a label; its id came from the TLS
     // handshake, which it could not have completed without the paired key.
     const peer = {
-      ...(offer.from ?? {}),
+      ...(manifest.from ?? {}),
       id: identity.deviceId,
     };
     refreshPeerName(peer.id, peer.name, peer.os);
 
-    const transfer = new IncomingTransfer(this, socket, { ...offer, from: peer }, leftover);
+    const transfer = new IncomingTransfer(this, channel, { ...manifest, from: peer });
     transfer.security = identity.security;
     this.#transfers.set(transfer.id, transfer);
     this.emit('offer', transfer.snapshot());
@@ -225,6 +254,13 @@ export class TransferServer extends EventEmitter {
     return true;
   }
 
+  /** The first `limit` file rows of one transfer, for the detail drawer. */
+  fileRows(transferId, limit) {
+    const transfer = this.#transfers.get(transferId);
+    if (!transfer) return null;
+    return { total: transfer.files.length, files: transfer.fileRows(limit) };
+  }
+
   /** Drop a finished transfer from the live list; history keeps the record. */
   forget(transferId) {
     const transfer = this.#transfers.get(transferId);
@@ -238,14 +274,69 @@ export class TransferServer extends EventEmitter {
   }
 }
 
+/**
+ * A manifest too large for one frame arrives as `offer` + a run of
+ * `offer-files` pages + `offer-end`. Collect the whole thing before anyone is
+ * asked to decide: the question on screen has to name the entire transfer,
+ * not the part of it that happened to fit in the first frame.
+ */
+async function collectManifestPages(channel, offer) {
+  const expected = Number(offer.fileCount);
+  if (!Number.isInteger(expected) || expected < 0) {
+    throw new Error('a paged offer did not say how many files to expect');
+  }
+  if (expected > MAX_MANIFEST_FILES) {
+    throw new Error(`${expected} files is more than this device accepts in one transfer`);
+  }
+
+  const files = [];
+  for (;;) {
+    const frame = await channel.read(MANIFEST_PAGE_TIMEOUT);
+    if (frame.t === 'offer-end') break;
+    if (frame.t !== 'offer-files') throw new Error(`unexpected ${frame.t} while reading the file list`);
+    if (!Array.isArray(frame.files)) throw new Error('a page carried no file list');
+    // Spreading into push() would be an argument list fifty thousand long.
+    for (const file of frame.files) files.push(file);
+    if (files.length > expected) throw new Error('more files arrived than the offer promised');
+  }
+  if (files.length !== expected) {
+    throw new Error(`the offer promised ${expected} files and sent ${files.length}`);
+  }
+  return files;
+}
+
+/**
+ * Pick a name no other file in this manifest has taken. In memory, and
+ * deliberately so: the destination folder was made for this transfer, so the
+ * only collision possible is with a sibling — two names that sanitised to
+ * one. Asking the filesystem would be a stat per file and a race besides.
+ */
+function claimTarget(target, claimed) {
+  if (!claimed.has(target)) {
+    claimed.add(target);
+    return target;
+  }
+  const ext = path.extname(target);
+  const base = target.slice(0, target.length - ext.length);
+  for (let i = 2; ; i += 1) {
+    const candidate = `${base} (${i})${ext}`;
+    if (!claimed.has(candidate)) {
+      claimed.add(candidate);
+      return candidate;
+    }
+  }
+}
+
 class IncomingTransfer {
   #dataSockets = new Set();
   #pendingWrites = new Set();
   #decisionMade = false;
+  #ownDir = false;
 
-  constructor(server, socket, offer, leftover) {
+  constructor(server, channel, offer) {
     this.server = server;
-    this.socket = socket;
+    this.channel = channel;
+    this.socket = channel.socket;
     this.id = offer.transferId;
     this.token = crypto.randomBytes(16).toString('hex');
     this.peer = offer.from ?? { name: 'unknown', os: 'unknown' };
@@ -266,25 +357,34 @@ class IncomingTransfer {
       received: 0,
     }));
 
-    socket.on('close', () => {
+    this.socket.on('close', () => {
       if (this.status === 'receiving' || this.status === 'pending') {
         this.#setStatus('failed', 'sender disconnected');
       }
     });
-    socket.on('error', () => { /* handled via close */ });
-    this.#listenForControl(leftover);
+    this.socket.on('error', () => { /* handled via close */ });
+    this.#listenForControl();
   }
 
   /** Listen for follow-up control frames from the sender: cancel, pause, resume. */
-  #listenForControl(leftover) {
-    readFrames(this.socket, (frame) => {
+  async #listenForControl() {
+    for (;;) {
+      let frame;
+      // The channel rejects when the connection dies, and the 'close' handler
+      // above has already turned that into a status. Nothing to add here.
+      try {
+        frame = await this.channel.read();
+      } catch {
+        return;
+      }
+
       if (frame.t === 'cancel') this.abort(frame.reason ?? 'cancelled by sender');
       else if (frame.t === 'pause' || frame.t === 'resume') {
         // Without this the bar simply stops and nothing explains why.
         this.paused = frame.t === 'pause';
         this.server.emit('transfer', this.snapshot());
       }
-    }, leftover);
+    }
   }
 
   awaitDecision() {
@@ -336,22 +436,80 @@ class IncomingTransfer {
     const label = sanitizeSegment(this.peer.name || 'Received');
     const dir = await uniquePath(path.join(downloadDir, label));
     await fsp.mkdir(dir, { recursive: true });
+    // Made for this transfer and empty, which is what lets preallocation
+    // settle collisions in memory instead of a stat per file.
+    this.#ownDir = true;
     return dir;
   }
 
+  /**
+   * Reserving each file at its full length up front lets every parallel stream
+   * write at its own offset without extending anything concurrently.
+   *
+   * Done one file at a time this is a round trip per file per step, and a
+   * folder of seventy thousand spends half a minute in it before the sender
+   * hears a word — so the work fans out, and while it runs the sender is told
+   * how far it has got rather than being left to wonder whether we died.
+   */
   async #preallocate() {
-    for (const file of this.files) {
-      const target = await uniquePath(safeJoin(this.destDir, file.rel));
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      const handle = await fsp.open(target, 'w');
-      try {
-        // Reserving the full length up front lets every parallel stream write
-        // at its own offset without extending the file concurrently.
-        if (file.size > 0) await handle.truncate(file.size);
-      } finally {
-        await handle.close();
+    const total = this.files.length;
+    const claimed = new Set();
+    const dirs = new Map();
+    let next = 0;
+    let done = 0;
+    let failed = false;
+
+    // Below this it is over before the first report would have been sent.
+    const report = total >= PREPARE_REPORT_FROM
+      ? setInterval(
+        () => this.#send({ t: 'offer-progress', transferId: this.id, prepared: done, total }),
+        PREPARE_REPORT_EVERY,
+      )
+      : null;
+
+    const worker = async () => {
+      for (;;) {
+        if (failed) return;
+        const index = next;
+        next += 1;
+        if (index >= total) return;
+        const file = this.files[index];
+
+        const target = this.#ownDir
+          ? claimTarget(safeJoin(this.destDir, file.rel), claimed)
+          : await uniquePath(safeJoin(this.destDir, file.rel));
+
+        // One mkdir per directory, with every worker that wants it waiting on
+        // that one: remembering only the name would let a worker open a file
+        // inside a directory that is still being created.
+        const dir = path.dirname(target);
+        let made = dirs.get(dir);
+        if (!made) {
+          made = fsp.mkdir(dir, { recursive: true });
+          dirs.set(dir, made);
+        }
+        await made;
+
+        const handle = await fsp.open(target, 'w');
+        try {
+          if (file.size > 0) await handle.truncate(file.size);
+        } finally {
+          await handle.close();
+        }
+        file.path = target;
+        done += 1;
       }
-      file.path = target;
+    };
+
+    try {
+      await Promise.all(Array.from({ length: PREPARE_CONCURRENCY }, worker));
+    } catch (err) {
+      // Stop the others rather than leave them filling a folder whose
+      // transfer has already been refused.
+      failed = true;
+      throw err;
+    } finally {
+      if (report) clearInterval(report);
     }
   }
 
@@ -415,6 +573,12 @@ class IncomingTransfer {
     this.socket.destroy();
   }
 
+  /** The rows the detail drawer draws, and nothing past them. */
+  fileRows(limit) {
+    return this.files.slice(0, limit)
+      .map((f) => ({ rel: f.rel, size: f.size, received: f.received, path: f.path }));
+  }
+
   #setStatus(status, error) {
     if (this.status === status) return;
     this.status = status;
@@ -423,7 +587,7 @@ class IncomingTransfer {
   }
 
   #send(obj) {
-    if (!this.socket.destroyed) this.socket.write(encodeFrame(obj));
+    this.channel.write(obj);
   }
 
   snapshot() {
@@ -437,9 +601,13 @@ class IncomingTransfer {
       totalSize: this.totalSize,
       received: this.received,
       fileCount: this.files.length,
-      // `path` is where the file actually landed after collision renaming,
-      // which is what the interface needs to point at it.
-      files: this.files.map((f) => ({ rel: f.rel, size: f.size, received: f.received, path: f.path })),
+      // Two strings rather than the list, as on the sending side and in
+      // history: this goes out three times a second, and a folder of seventy
+      // thousand would make every frame five megabytes of file names.
+      firstFile: this.files[0]?.rel ?? null,
+      // Where the one file actually landed after collision renaming, which is
+      // what the interface needs to point at it.
+      filePath: this.files.length === 1 ? (this.files[0]?.path ?? null) : null,
       destDir: this.destDir,
       speed: this.speed.bytesPerSecond,
       security: this.security ?? null,

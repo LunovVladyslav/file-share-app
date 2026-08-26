@@ -160,6 +160,21 @@ console.log('\nTransfer history\n');
   fs.rmSync(broken, { recursive: true, force: true });
 }
 
+/* --- forgetting one, rather than all of them ------------------------------ */
+{
+  history.clear();
+  history.record(snapshot({ id: 'keep-me', createdAt: 2 }));
+  history.record(snapshot({ id: 'drop-me', createdAt: 1 }));
+
+  check(history.forget('drop-me'), 'a remembered transfer can be forgotten on its own');
+  check(history.entries().map((e) => e.id).join(',') === 'keep-me', 'and the rest stay',
+    history.entries().map((e) => e.id).join(','));
+  check(stored().length === 1, 'the file agrees, not only the copy in memory', `${stored().length}`);
+  check(!history.forget('drop-me'), 'forgetting it twice says there was nothing to forget');
+  check(!history.forget('never-existed'), 'as does one that was never there');
+  history.clear();
+}
+
 /* --- which statuses are over ---------------------------------------------- */
 {
   const over = ['completed', 'failed', 'declined', 'cancelled'];
@@ -217,6 +232,68 @@ console.log('\nTransfer history\n');
   check(!forgotten.includes('still-going') && !forgotten.includes('sending-now'),
     'and a transfer still moving bytes is left alone');
   check(!forgotten.includes('not-answered'), 'as is one nobody has answered yet');
+
+  ui.stop();
+  history.clear();
+}
+
+/* --- taking one card off the list -----------------------------------------
+ *
+ * "Clear the list" is all of them or none, which is no use to someone who
+ * wants one failed attempt gone and the rest kept. Removing a single card has
+ * to reach both halves of the list — the finished transfer still in memory and
+ * the remembered one behind it — and must leave a running transfer alone. */
+{
+  const { EventEmitter } = await import('node:events');
+
+  const forgotten = [];
+  const source = (transfers) => Object.assign(new EventEmitter(), {
+    transfers,
+    pairings: [],
+    // The real ends refuse to forget a transfer that is still running. So
+    // does this one, or the check below would prove nothing.
+    forget(id) {
+      const found = transfers.find((x) => x.id === id);
+      if (!found || !history.isFinished(found.status)) return false;
+      forgotten.push(id);
+      return true;
+    },
+  });
+
+  const server = source([{ id: 'over', direction: 'in', status: 'completed', createdAt: 1 }]);
+  const sender = source([
+    { id: 'gave-up', direction: 'out', status: 'failed', createdAt: 4 },
+    { id: 'sending-now', direction: 'out', status: 'sending', createdAt: 5 },
+  ]);
+  const discovery = Object.assign(new EventEmitter(), { peers: [] });
+
+  const { UiServer } = await import('../src/ui-server.js');
+  const ui = new UiServer({ discovery, server, sender });
+  await ui.start(45895);
+
+  const drop = (id) => fetch('http://127.0.0.1:45895/api/forget', {
+    method: 'POST',
+    headers: { 'x-flyshare-token': ui.token, 'content-type': 'application/json' },
+    body: JSON.stringify({ transferId: id }),
+  });
+
+  history.record(snapshot({ id: 'remembered' }));
+
+  let response = await drop('gave-up');
+  check(response.status === 200, 'a failed transfer can be removed on its own', `${response.status}`);
+  check(forgotten.join(',') === 'gave-up', 'and it is the only one dropped', forgotten.join(','));
+  check(history.entries().length === 1, 'the remembered ones are left where they were');
+
+  response = await drop('remembered');
+  check(response.status === 200, 'so can one that only history still holds', `${response.status}`);
+  check(history.entries().length === 0, 'and the stored record goes with the card');
+
+  response = await drop('sending-now');
+  check(response.status === 404, 'a transfer still moving bytes is refused', `${response.status}`);
+  check(!forgotten.includes('sending-now'), 'and stays on the list, cancel button and all');
+
+  response = await drop('never-existed');
+  check(response.status === 404, 'as is a card that was never there', `${response.status}`);
 
   ui.stop();
   history.clear();

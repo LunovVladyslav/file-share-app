@@ -6,31 +6,67 @@ import path from 'node:path';
  * Folder structure is preserved through `rel`, always with forward slashes so
  * a Windows sender and a macOS receiver agree on the layout.
  */
-export async function buildManifest(inputPaths) {
-  const files = [];
+// A folder of seventy thousand files is a stat call each, and takes seconds.
+// Reporting a few times a second is enough to show that something is
+// happening without making the counting itself the expensive part.
+const SCAN_REPORT_EVERY = 150;
+
+/**
+ * @param {object} [watch]
+ * @param {(found: {files: number, bytes: number, first: string|null}) => void}
+ *   [watch.onProgress] Called as the walk goes. Until this existed a big
+ *   folder meant several seconds in which the interface showed nothing at
+ *   all, which reads as a hang.
+ * @param {() => boolean} [watch.stopped] Asked between entries, so cancelling
+ *   stops the walk rather than only ignoring its result.
+ */
+export async function buildManifest(inputPaths, watch = {}) {
+  const scan = {
+    files: [],
+    bytes: 0,
+    stopped: false,
+    lastReport: 0,
+    onProgress: watch.onProgress,
+    isStopped: watch.stopped ?? (() => false),
+  };
+
   for (const input of inputPaths) {
+    if (scan.isStopped()) { scan.stopped = true; break; }
     const resolved = path.resolve(input);
     const stat = await fs.stat(resolved);
     if (stat.isDirectory()) {
-      await walk(resolved, path.basename(resolved), files);
+      await walk(resolved, path.basename(resolved), scan);
     } else if (stat.isFile()) {
-      files.push({ abs: resolved, rel: path.basename(resolved), size: stat.size });
+      found(scan, { abs: resolved, rel: path.basename(resolved), size: stat.size });
     }
+    if (scan.stopped) break;
   }
-  const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-  return { files, totalSize };
+
+  return { files: scan.files, totalSize: scan.bytes, stopped: scan.stopped };
 }
 
-async function walk(dir, relBase, out) {
+function found(scan, file) {
+  scan.files.push(file);
+  scan.bytes += file.size;
+  const now = Date.now();
+  if (scan.onProgress && now - scan.lastReport >= SCAN_REPORT_EVERY) {
+    scan.lastReport = now;
+    scan.onProgress({ files: scan.files.length, bytes: scan.bytes, first: scan.files[0].rel });
+  }
+}
+
+async function walk(dir, relBase, scan) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
+    if (scan.isStopped()) { scan.stopped = true; return; }
     const abs = path.join(dir, entry.name);
     const rel = `${relBase}/${entry.name}`;
     if (entry.isDirectory()) {
-      await walk(abs, rel, out);
+      await walk(abs, rel, scan);
+      if (scan.stopped) return;
     } else if (entry.isFile()) {
       const stat = await fs.stat(abs);
-      out.push({ abs, rel, size: stat.size });
+      found(scan, { abs, rel, size: stat.size });
     }
     // Symlinks and special files are skipped: they don't survive a
     // Windows <-> macOS round trip in any predictable way.

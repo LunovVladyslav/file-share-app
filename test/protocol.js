@@ -142,6 +142,53 @@ async function main() {
   unknown.socket.destroy();
   await sleep(800);
 
+  // --- pause, resume and cancel on the control connection -----------------
+  //
+  // §9.5. These reach the receiver as frames on the control connection long
+  // after the offer, and the reply is a status the interface draws — a bar
+  // that has stopped with nothing to explain it is the failure to avoid.
+  console.log('\npause, resume and cancel:');
+  receiver.events.length = 0;
+
+  const live = new FrameChannel(await connectSecure(peer));
+  live.write({
+    t: 'offer',
+    ver: 2,
+    transferId: 'pause-test',
+    from: { id: senderHome.deviceId, name: 'test-sender', os: 'test' },
+    files: [{ rel: 'held.bin', size: 4 }],
+    totalSize: 4,
+    streams: 1,
+  });
+  const held = await receiver.waitFor((m) => m.type === 'offer', 15000, 'the offer');
+  receiver.send({ cmd: 'respond', transferId: held.payload.id, accept: true });
+  const accepted = await live.read(15000);
+  check(accepted.t === 'offer-result' && accepted.accept === true, 'a transfer is under way');
+
+  const flagged = async (want, label) => {
+    const seen = await receiver.waitFor(
+      (m) => m.type === 'transfer' && m.payload.id === 'pause-test' && m.payload.paused === want,
+      10000, label,
+    );
+    return seen.payload;
+  };
+
+  live.write({ t: 'pause', transferId: 'pause-test' });
+  check((await flagged(true, 'the pause to register')).paused === true,
+    'pausing the sender shows on the receiving side');
+
+  live.write({ t: 'resume', transferId: 'pause-test' });
+  check((await flagged(false, 'the resume to register')).paused === false,
+    'and so does resuming it');
+
+  live.write({ t: 'cancel', transferId: 'pause-test', reason: 'changed my mind' });
+  const stopped = await receiver.waitFor(
+    (m) => m.type === 'transfer' && m.payload.id === 'pause-test' && m.payload.status === 'cancelled',
+    10000, 'the cancel to land',
+  );
+  check(stopped.payload.status === 'cancelled', 'and cancelling ends it', stopped.payload.error ?? '');
+  live.socket.destroy();
+
   // --- path safety --------------------------------------------------------
   console.log('\npath safety:');
   await fsp.rm(DEST, { recursive: true, force: true });

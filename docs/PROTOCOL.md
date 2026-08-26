@@ -34,6 +34,8 @@ MUST NOT negotiate downwards.
 | Announce interval | 3000 ms | — |
 | Peer expiry | 12000 ms of silence | — |
 | Maximum frame body | 4 MiB | — |
+| Maximum files in one manifest | 500000 | — |
+| Manifest page timeout | 60 s | — |
 | Handshake step timeout | 30 s | — |
 | Human decision timeout | 180 s | — |
 
@@ -234,9 +236,9 @@ Everything that is not pairing happens inside TLS 1.3.
 
 ```
 client                                        server
-   │  session      {ver, deviceId, ephPub}      │
+   │  session      {ver, deviceId, ephPub, caps} │
    │ ──────────────────────────────────────────►│
-   │  session-ok   {deviceId, ephPub}           │   or session-err
+   │  session-ok   {deviceId, ephPub, caps}     │   or session-err
    │ ◄──────────────────────────────────────────│
    │           both derive the PSK               │
    │        TLS 1.3 handshake on this socket     │
@@ -256,6 +258,22 @@ interface can offer to pair instead of showing a network error.
 
 A client MUST also verify that `session-ok.deviceId` equals the device it meant
 to reach, and abort otherwise.
+
+### 8.1.1 Capabilities
+
+`caps` is an optional list of wire features the device sending the frame can
+**read**. Older implementations omit it, and an absent `caps` MUST be treated as
+an empty one. Exactly one capability is defined:
+
+| Capability | Meaning |
+|---|---|
+| `manifest-pages` | Can read an offer whose file list arrives as pages (§9.1.1). |
+
+A device MUST NOT send anything that depends on a capability the other side did
+not announce, and MUST ignore any capability it does not recognise. This is
+deliberately not the protocol version's job: a version bump refuses an older
+device outright, where a capability lets it keep working and withholds only what
+it could not have read.
 
 ### 8.2 Session key
 
@@ -336,6 +354,42 @@ sender and an Android receiver agree on the layout. `streams` is advisory.
 The receiver MUST treat `from.id` as untrusted display data and use the device
 id proven by the TLS handshake instead.
 
+### 9.1.1 Manifests too large for one frame
+
+A file list is bounded only by how many files were dropped, and 4 MiB runs out
+at roughly fifty thousand of them. A sender whose list does not fit MUST NOT
+send it anyway: the receiver reads the length prefix, drops the connection
+before the first entry arrives, and the person is told the link failed when the
+truth is that the drop was too large.
+
+A sender whose peer announced `manifest-pages` instead sends the offer with an
+empty `files`, the count, and `paged`:
+
+```json
+{
+  "t": "offer", "ver": 2, "transferId": "3f2a…", "from": { "…": "…" },
+  "files": [], "paged": true, "fileCount": 69686,
+  "totalSize": 41231208448, "streams": 4
+}
+```
+
+then the list itself, in as many pages as it takes, then an end:
+
+```json
+{ "t": "offer-files", "transferId": "3f2a…", "files": [{ "rel": "…", "size": 0 }] }
+{ "t": "offer-end", "transferId": "3f2a…" }
+```
+
+Every page MUST fit in a frame, and entries keep the order they had in the
+manifest. The receiver MUST hold the whole list before asking anyone to decide —
+the question names the transfer, not the part of it that fit in the first frame
+— and MUST refuse the offer if the pages do not add up to `fileCount`, if
+`fileCount` exceeds its own limit, or if a page does not arrive in time.
+
+A sender whose peer did **not** announce `manifest-pages` MUST fail the transfer
+locally, with a reason that says so, rather than putting an oversized frame on
+the wire.
+
 ### 9.2 Answer
 
 The receiver asks a person, unless it is configured to auto-accept for
@@ -360,6 +414,16 @@ The `token` authorises data connections for this transfer and MUST be
 unpredictable. Before replying with acceptance, the receiver SHOULD create every
 destination file at its final size, so parallel streams can write at their own
 offsets without extending the file.
+
+Creating tens of thousands of files takes long enough to look like a hang, so a
+receiver still preparing MAY say how far it has got:
+
+```json
+{ "t": "offer-progress", "transferId": "3f2a…", "prepared": 12400, "total": 69686 }
+```
+
+A sender MAY use these to show what the delay is and to keep its own wait alive,
+but MUST NOT require them: a receiver that never sends one is correct.
 
 ### 9.3 Data connections
 
@@ -458,6 +522,9 @@ A new implementation is compatible when it can:
 - [ ] Derive an identical session PSK and complete a TLS 1.3 external-PSK handshake.
 - [ ] Refuse an unpaired peer with `session-err` + `needsPairing`.
 - [ ] Send and receive a multi-file, multi-stream transfer with byte-identical results.
+- [ ] Treat an absent `caps` as empty, and ignore a capability it does not know.
+- [ ] Reassemble a paged manifest before anyone is asked to accept it, and refuse one
+      whose pages do not add up.
 - [ ] Contain a hostile `rel` path.
 - [ ] Reject a data connection bearing the wrong token.
 - [ ] Pause and resume a transfer in flight, if it advertises `canPause`.

@@ -9,6 +9,58 @@
 
 export const MAX_FRAME = 4 * 1024 * 1024;
 
+/**
+ * Optional wire features, announced in the session handshake rather than tied
+ * to PROTOCOL_VERSION. A version bump refuses the older peer outright; a
+ * capability lets it keep working, and only withholds what it cannot read.
+ */
+export const MANIFEST_PAGES = 'manifest-pages';
+export const CAPABILITIES = [MANIFEST_PAGES];
+
+/** What the peer at the other end of an established session said it can read. */
+export function peerSupports(socket, capability) {
+  return Array.isArray(socket?.peerCaps) && socket.peerCaps.includes(capability);
+}
+
+/**
+ * Room left inside a manifest frame for everything that is not the file list:
+ * the transfer id, the sender's name, the JSON around them. Generous on
+ * purpose — it costs a few kilobytes of four megabytes, and it spares the
+ * sender from having to predict the exact cost of its own device name.
+ */
+const MANIFEST_HEADROOM = 64 * 1024;
+
+/**
+ * Split a file list into pages that each survive `encodeFrame`.
+ *
+ * A folder of seventy thousand files is a manifest of several megabytes, and
+ * the 4 MiB frame ceiling is a hard one: the receiver reads the length prefix
+ * and drops the connection before the first entry arrives. A list that already
+ * fits comes back as a single page, so an ordinary transfer goes on the wire
+ * byte for byte as it did before pages existed.
+ */
+export function pageManifest(files, budget) {
+  const cap = budget || MAX_FRAME - MANIFEST_HEADROOM;
+  const pages = [];
+  let page = [];
+  let size = 2; // the enclosing brackets
+  for (const file of files) {
+    const entry = { rel: file.rel, size: file.size };
+    // Byte length, not string length: a Cyrillic filename is twice the
+    // characters it looks like once it is UTF-8 on the wire.
+    const cost = Buffer.byteLength(JSON.stringify(entry)) + 1;
+    if (page.length > 0 && size + cost > cap) {
+      pages.push(page);
+      page = [];
+      size = 2;
+    }
+    page.push(entry);
+    size += cost;
+  }
+  if (page.length > 0) pages.push(page);
+  return pages;
+}
+
 export function encodeFrame(obj) {
   const body = Buffer.from(JSON.stringify(obj), 'utf8');
   const head = Buffer.allocUnsafe(4);

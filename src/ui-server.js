@@ -6,9 +6,16 @@ import { spawn } from 'node:child_process';
 import { UI_PORT, loadConfig, saveConfig, platformLabel } from './core/config.js';
 import { localInterfaces } from './core/discovery.js';
 import { isPaired, pairedPeers, forgetPeer } from './core/trust.js';
-import { entries as historyEntries, record as recordTransfer, clear as clearHistory, isFinished } from './core/history.js';
+import {
+  entries as historyEntries, record as recordTransfer, clear as clearHistory,
+  forget as forgetRemembered, isFinished,
+} from './core/history.js';
 import { pickFiles, pickFolder } from './util/picker.js';
 import { readUiFile } from './util/assets.js';
+
+// The detail drawer draws at most this many rows, so this is the most it is
+// ever sent. It has to match DETAIL_FILE_LIMIT in ui/app.js.
+const FILE_ROW_LIMIT = 500;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -220,6 +227,32 @@ export class UiServer {
         return sendJson(res, 200, { ok: true });
       }
 
+      case 'POST /api/forget': {
+        const body = await readJson(req);
+        // One card can be two records: the finished transfer still in memory
+        // and the remembered one behind it. Both go, or the next frame puts
+        // the card back. Neither side drops one that is still running.
+        const dropped = [
+          this.server.forget(body.transferId),
+          this.sender.forget(body.transferId),
+          forgetRemembered(body.transferId),
+        ].some(Boolean);
+        if (dropped) this.push();
+        return sendJson(res, dropped ? 200 : 404, { ok: dropped });
+      }
+
+      case 'POST /api/transfer/files': {
+        // The file list left the pushed state: at seventy thousand files it
+        // was megabytes in every frame, for rows only the open drawer draws.
+        // It is asked for here instead, capped at what fits on screen.
+        const body = await readJson(req);
+        const rows = this.server.fileRows(body.transferId, FILE_ROW_LIMIT)
+          ?? this.sender.fileRows(body.transferId, FILE_ROW_LIMIT);
+        // A remembered transfer has none — history drops the list on purpose,
+        // and the drawer already knows how to say so.
+        return sendJson(res, 200, rows ?? { total: 0, files: [] });
+      }
+
       case 'POST /api/cancel': {
         const body = await readJson(req);
         const ok = this.server.cancel(body.transferId) || this.sender.cancel(body.transferId);
@@ -353,6 +386,10 @@ export class UiServer {
   }
 
   #write(res, state) {
+    // A client that cannot keep up would otherwise have frames queued in
+    // memory without limit. Dropping one is the right loss: the next carries
+    // the same thing, only newer.
+    if (res.writableNeedDrain) return;
     res.write(`data: ${JSON.stringify(state)}\n\n`);
   }
 
@@ -382,7 +419,9 @@ const LANGUAGES = new Set(['auto', 'en', 'de', 'uk', 'pl']);
 const THEMES = new Set(['system', 'light', 'dark']);
 const VIEWS = new Set(['list', 'grid']);
 
-const ACTIVE_STATUSES = new Set(['pending', 'connecting', 'waiting', 'sending', 'receiving', 'finalizing']);
+const ACTIVE_STATUSES = new Set([
+  'pending', 'scanning', 'connecting', 'waiting', 'sending', 'receiving', 'finalizing',
+]);
 
 /**
  * Strict, because this string becomes the destination of a datagram. A regex
